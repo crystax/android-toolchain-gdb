@@ -3,7 +3,7 @@
    Copyright (C) 1990-1996, 1998-2001, 2003-2012 Free Software
    Foundation, Inc.
 
-   Copyright (c) 2011-2012, NVIDIA CORPORATION.  All rights reserved.
+   Copyright (c) 2011, NVIDIA CORPORATION.  All rights reserved.
 
    This file is part of GDB.
 
@@ -808,6 +808,26 @@ solib_svr4_r_map (struct svr4_info *info)
   return addr;
 }
 
+/* Read the dynamic linker r_state field. If successful, place the value in
+   RETVAL and return 1; otherwise 0.  */
+
+static int
+solib_svr4_r_state (struct svr4_info *info, int* retval)
+{
+  struct link_map_offsets *lmo = svr4_fetch_link_map_offsets ();
+  volatile struct gdb_exception ex;
+  int rv = 0;
+
+  TRY_CATCH (ex, RETURN_MASK_ERROR)
+    {
+      int state = read_memory_integer (info->debug_base + lmo->r_state_offset,
+                                       4, gdbarch_bits_big_endian(target_gdbarch));
+      *retval = state;
+      rv = 1;
+    }
+  return rv;
+}
+
 /* Find r_brk from the inferior's debug base.  */
 
 static CORE_ADDR
@@ -1170,6 +1190,36 @@ svr4_default_sos (void)
   strcpy (new->so_original_name, new->so_name);
 
   return new;
+}
+
+/* LOCAL FUNCTION
+
+   can_read_current_sos -- determine if you can call current_sos()
+
+   SYNOPSIS
+
+   int can_read_current_sos ()
+
+   DESCRIPTION
+
+   If the dynamic linker is in such a state that the list of shared object
+   currently loaded can be read, return 1; otherwise 0. This could happen,
+   for example, when the linker is stopped while adding or removing solibs
+   during its operation.  */
+
+int svr4_can_read_current_sos (void)
+{
+  int state;
+  struct svr4_info *info;
+
+  info = get_svr4_info ();
+
+  /* Only if we can read the state and it says the linker is not in
+     consistent state, return 0.  */
+  if (solib_svr4_r_state (info, &state) && state != 0)
+    return 0;
+
+  return 1;
 }
 
 /* Read the whole inferior libraries chain starting at address LM.  Add the
@@ -2454,6 +2504,7 @@ svr4_ilp32_fetch_link_map_offsets (void)
       lmo.r_version_size = 4;
       lmo.r_map_offset = 4;
       lmo.r_brk_offset = 8;
+      lmo.r_state_offset = 12;
       lmo.r_ldsomap_offset = 20;
 
       /* Everything we need is in the first 20 bytes.  */
@@ -2485,6 +2536,7 @@ svr4_lp64_fetch_link_map_offsets (void)
       lmo.r_version_size = 4;
       lmo.r_map_offset = 8;
       lmo.r_brk_offset = 16;
+      lmo.r_state_offset = 24;
       lmo.r_ldsomap_offset = 40;
 
       /* Everything we need is in the first 40 bytes.  */
@@ -2543,6 +2595,7 @@ _initialize_svr4_solib (void)
   svr4_so_ops.clear_solib = svr4_clear_solib;
   svr4_so_ops.solib_create_inferior_hook = svr4_solib_create_inferior_hook;
   svr4_so_ops.special_symbol_handling = svr4_special_symbol_handling;
+  svr4_so_ops.can_read_current_sos = svr4_can_read_current_sos;
   svr4_so_ops.current_sos = svr4_current_sos;
   svr4_so_ops.open_symbol_file_object = open_symbol_file_object;
   svr4_so_ops.in_dynsym_resolve_code = svr4_in_dynsym_resolve_code;

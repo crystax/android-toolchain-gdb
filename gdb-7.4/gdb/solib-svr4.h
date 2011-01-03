@@ -2,6 +2,8 @@
 
    Copyright (C) 2000, 2004, 2006-2012 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -39,6 +41,9 @@ struct link_map_offsets
 
     /* Offset of r_debug.r_brk.  */
     int r_brk_offset;
+
+    /* Offset of r_debug.r_state.  */
+    int r_state_offset;
 
     /* Offset of r_debug.r_ldsomap.  */
     int r_ldsomap_offset;
