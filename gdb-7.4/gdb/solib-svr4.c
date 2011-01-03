@@ -3,6 +3,8 @@
    Copyright (C) 1990-1996, 1998-2001, 2003-2012 Free Software
    Foundation, Inc.
 
+   Copyright (c) 2011-2012, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -47,6 +49,9 @@
 #include "auxv.h"
 #include "exceptions.h"
 
+struct svr4_info;
+
+static int enable_break (struct svr4_info *info, int from_tty);
 static struct link_map_offsets *svr4_fetch_link_map_offsets (void);
 static int svr4_have_link_map_offsets (void);
 static void svr4_relocate_main_executable (void);
@@ -305,6 +310,10 @@ struct svr4_info
 
   /* Name of the dynamic linker, valid if debug_loader_offset_p.  */
   char *debug_loader_name;
+
+  /* Pointer to the dynamic linker breakpoint, if already resolved, or
+     NULL.  */
+  CORE_ADDR found_r_brk;
 
   /* Load map address for the main executable.  */
   CORE_ADDR main_lm_addr;
@@ -1310,6 +1319,15 @@ svr4_current_sos (void)
   if (head == NULL)
     return svr4_default_sos ();
 
+  /* If we haven't found dynamic linker breakpoint yet, try again.  */
+  if (! info->found_r_brk)
+    {
+      enable_break (info, 0);
+      if (info->found_r_brk)
+        warning (_("Dynamic linker breakpoint function now found. Pending\n"
+                   "breakpoints in dynamically-loaded libraries will now work."));
+    }
+
   return head;
 }
 
@@ -1442,6 +1460,11 @@ enable_break (struct svr4_info *info, int from_tty)
   CORE_ADDR sym_addr;
   CORE_ADDR svr4_sym_addr = 0;
 
+  /* Guard for re-entrant calls via solib_add() -> current_sos() ->
+     enable_break().  Make sure each return from this function will reset
+     found_r_brk into NULL or the real r_brk pointer.  */
+  info->found_r_brk = -1;
+
   info->interp_text_sect_low = info->interp_text_sect_high = 0;
   info->interp_plt_sect_low = info->interp_plt_sect_high = 0;
 
@@ -1514,6 +1537,7 @@ enable_break (struct svr4_info *info, int from_tty)
 	    }
 
 	  create_solib_event_breakpoint (target_gdbarch, sym_addr);
+	  info->found_r_brk = sym_addr;
 	  return 1;
 	}
       else
@@ -1698,6 +1722,7 @@ enable_break (struct svr4_info *info, int from_tty)
 	{
 	  create_solib_event_breakpoint (target_gdbarch, load_addr + sym_addr);
 	  xfree (interp_name);
+	  info->found_r_brk = load_addr + sym_addr;
 	  return 1;
 	}
 
@@ -1706,8 +1731,9 @@ enable_break (struct svr4_info *info, int from_tty)
     bkpt_at_symbol:
       xfree (interp_name);
       warning (_("Unable to find dynamic linker breakpoint function.\n"
-               "GDB will be unable to debug shared library initializers\n"
-               "and track explicitly loaded dynamic code."));
+                 "GDB will retry eventurally.  Meanwhile, it is likely\n"
+                 "that GDB is unable to debug shared library initializers\n"
+                 "or resolve pending breakpoints after dlopen()."));
     }
 
   /* Scan through the lists of symbols, trying to look up the symbol and
@@ -1723,10 +1749,15 @@ enable_break (struct svr4_info *info, int from_tty)
 							 sym_addr,
 							 &current_target);
 	  create_solib_event_breakpoint (target_gdbarch, sym_addr);
+	  info->found_r_brk = sym_addr;
 	  return 1;
 	}
     }
 
+  /* If the inferior was forked rather than attached to, it might be that
+     we've been trying to find the linker's solib breakpoint too early.  Set
+     an internal breakpoint on _start(), for an opportunity to try again
+     later. */
   if (!current_inferior ()->attach_flag)
     {
       for (bkpt_namep = bkpt_names; *bkpt_namep != NULL; bkpt_namep++)
@@ -1739,10 +1770,14 @@ enable_break (struct svr4_info *info, int from_tty)
 							     sym_addr,
 							     &current_target);
 	      create_solib_event_breakpoint (target_gdbarch, sym_addr);
+	      /* Even though we're returning 1 (success) here, we haven't
+	         actually found the solib event breakpoint yet. */
+	      info->found_r_brk = (CORE_ADDR)NULL;
 	      return 1;
 	    }
 	}
     }
+  info->found_r_brk = (CORE_ADDR)NULL;
   return 0;
 }
 
@@ -2299,6 +2334,7 @@ svr4_clear_solib (void)
   info->debug_loader_offset = 0;
   xfree (info->debug_loader_name);
   info->debug_loader_name = NULL;
+  info->found_r_brk = (CORE_ADDR)NULL;
 }
 
 /* Clear any bits of ADDR that wouldn't fit in a target-format
