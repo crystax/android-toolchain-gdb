@@ -2,6 +2,8 @@
    Copyright (C) 1993-1996, 1998-2002, 2004, 2007-2012 Free Software
    Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file was created using portions of irix5-nat.c originally
    contributed to GDB by Ian Lance Taylor.
 
@@ -649,6 +651,7 @@ _initialize_irix_solib (void)
   irix_so_ops.clear_solib = irix_clear_solib;
   irix_so_ops.solib_create_inferior_hook = irix_solib_create_inferior_hook;
   irix_so_ops.special_symbol_handling = irix_special_symbol_handling;
+  irix_so_ops.can_read_current_sos = NULL;
   irix_so_ops.current_sos = irix_current_sos;
   irix_so_ops.open_symbol_file_object = irix_open_symbol_file_object;
   irix_so_ops.in_dynsym_resolve_code = irix_in_dynsym_resolve_code;
