@@ -32,8 +32,14 @@ void init_registers_i386_linux (void);
 /* Defined in auto-generated file reg-x86-64-linux.c.  */
 void init_registers_x86_64_linux (void);
 
+#ifdef HAVE_SYS_REG_H
 #include <sys/reg.h>
+#endif
+
+#ifdef HAVE_SYS_PROCFS_H
 #include <sys/procfs.h>
+#endif
+
 #include <sys/ptrace.h>
 
 #ifndef PTRACE_GET_THREAD_AREA
