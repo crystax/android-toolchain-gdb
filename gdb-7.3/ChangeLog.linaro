@@ -1,0 +1,513 @@
+2011-12-07  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	GDB Linaro 7.3-2011.12 released.
+
+	gdb/
+	* version.in: Update.
+
+2011-12-07  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #892008
+	Backport from mainline:
+
+	2011-12-07  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* arm-tdep.h (arm_deal_with_atomic_sequence): Add prototype.
+	* arm-tdep.c (thumb_deal_with_atomic_sequence_raw): New function.
+	(arm_deal_with_atomic_sequence_raw): Likewise.
+	(arm_deal_with_atomic_sequence): Likewise.
+	(arm_software_single_step): Call it.
+	* arm-linux-tdep.c (arm_linux_software_single_step): Likewise.
+
+2011-12-07  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Update to GDB 7.3.1 release.
+
+2011-10-11  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* version.in: Bump version.
+
+2011-10-11  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	GDB Linaro 7.3-2011.10 released.
+
+	gdb/
+	* version.in: Update.
+
+2011-10-11  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #829595
+	Backport from mainline:
+
+	2011-10-11  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.python/py-shared.exp: Relax filename check to handle remote:
+	sysroot.
+
+	2011-10-11  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* symfile.c (separate_debug_file_exists): Fix condition.
+
+	2011-10-11  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	gdb/
+	Fix separate debuginfo warning with "remote:" access.
+	* objfiles.h (struct objfile): New fields crc32 and crc32_p.
+	* symfile.c (get_file_crc): New function with the code moved from ...
+	(separate_debug_file_exists): ... this function, specifically variables
+	buffer and count.  New variable verified_as_different, set it.  Remove
+	file_crc initialization.  Verify also if both files are not the same
+	manually, if needed.
+
+2011-10-10  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #871901
+	Backport from mainline:
+
+	2011-10-10  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	PR gdb/13218
+	* arm-linux-nat.c (os_version, os_major, os_minor, os_release):
+	Remove unused variables.
+	(get_linux_version): Remove function.
+	(_initialize_arm_linux_nat): Do not call it.
+
+2011-10-07  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #804408
+	Backport from mainline:
+
+	2011-10-07  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* inferior.h (disable_randomization): Declare.
+	* infrun.c (disable_randomization): New global variable.
+	(show_disable_randomization): New function.
+	(set_disable_randomization): Likewise.
+	(_initialize_infrun): Install set/show disable-randomization
+	commands.
+	* linux-nat.c (disable_randomization): Remove.
+	(show_disable_randomization): Likewise.
+	(set_disable_randomization): Likewise.
+	(_initialize_linux_nat): No longer install set/show
+	disable-randomization commands here.
+	(linux_nat_supports_disable_randomization): New function.
+	(linux_nat_add_target): Install it.
+	* remote.c (PACKET_QDisableRandomization): New enum value.
+	(remote_protocol_packets): Support QDisableRandomization.
+	(_initialize_remote): Likewise.
+	(remote_supports_disable_randomization): New function.
+	(init_remote_ops): Install it.
+	(extended_remote_supports_disable_randomization): New function.
+	(init_extended_remote_ops): Install it.
+	(extended_remote_disable_randomization): New function.
+	(extended_remote_create_inferior_1): Call it.
+	* target.h (struct target_ops): Add to_supports_disable_randomization.
+	(target_supports_disable_randomization): Add prototype.
+	* target.c (target_supports_disable_randomization): New function.
+	(find_default_supports_disable_randomization): Likewise.
+	(init_dummy_target): Install it.
+
+	gdb/doc/
+	* gdb.texinfo (Starting your Program): "set disable-randomization"
+	is no longer Linux-specific.
+	(Remote Configuration): Document "set remote
+	disable-randomization-packet".
+	(General Query Packets): Document "QDisableRandomization" packet
+	and add it to "qSupported" list.
+
+	gdb/gdbserver/
+	* configure.ac: Check support for personality routine.
+	* configure: Regenerate.
+	* config.in: Likewise.
+	* linux-low.c: Include <sys/personality.h>.
+	Define ADDR_NO_RANDOMIZE if necessary.
+	(linux_create_inferior): Disable address space randomization when
+	forking inferior, if requested.
+	(linux_supports_disable_randomization): New function.
+	(linux_target_ops): Install it.
+	* server.h (disable_randomization): Declare.
+	* server.c (disable_randomization): New global variable.
+	(handle_general_set): Handle QDisableRandomization.
+	(handle_query): Likewise for qSupported.
+	(main): Support --disable-randomization and --no-disable-randomization
+	command line arguments.
+	* target.h (struct target_ops): Add supports_disable_randomization.
+	(target_supports_disable_randomization): New macro.
+
+2011-09-21  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Backport from mainline:
+
+	2011-09-21  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/gdbserver/
+	* linux-arm-low.c (struct arm_linux_hwbp_cap): Remove.
+	(arm_linux_hwbp_cap): New static variable.
+	(arm_linux_get_hwbp_cap): Replace by ...
+	(arm_linux_init_hwbp_cap): ... this new function.
+	(arm_linux_get_hw_breakpoint_count): Use arm_linux_hwbp_cap.
+	(arm_linux_get_hw_watchpoint_count): Likewise.
+	(arm_linux_get_hw_watchpoint_max_length): Likewise.
+	(arm_arch_setup): Call arm_linux_init_hwbp_cap.
+	(arm_prepare_to_resume): Use perror_with_name instead of error.
+
+2011-09-13  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* version.in: Bump version.
+
+2011-09-13  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	GDB Linaro 7.3-2011.09 released.
+
+	gdb/
+	* version.in: Update.
+
+2011-09-13  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/gdbserver/
+	* linux-arm-low.c: Include <signal.h>.
+	(PTRACE_GETHBPREGS, PTRACE_SETHBPREGS): Define if necessary.
+	(struct arm_linux_hwbp_cap): New data type.
+	(arm_hwbp_type, arm_hwbp_control_t): New typedefs.
+	(struct arm_linux_hw_breakpoint): New data type.
+	(MAX_BPTS, MAX_WPTS): Define.
+	(struct arch_process_info, struct arch_lwp_info): New data types.
+	(arm_linux_get_hwbp_cap): New function.
+	(arm_linux_get_hw_breakpoint_count): Likewise.
+	(arm_linux_get_hw_watchpoint_count): Likewise.
+	(arm_linux_get_hw_watchpoint_max_length): Likewise.
+	(arm_hwbp_control_initialize): Likewise.
+	(arm_hwbp_control_is_enabled): Likewise.
+	(arm_hwbp_control_is_initialized): Likewise.
+	(arm_hwbp_control_disable): Likewise.
+	(arm_linux_hw_breakpoint_equal): Likewise.
+	(arm_linux_hw_point_initialize): Likewise.
+	(struct update_registers_data): New data structure.
+	(update_registers_callback: New function.
+	(arm_insert_point): Likewise.
+	(arm_remove_point): Likewise.
+	(arm_stopped_by_watchpoint): Likewise.
+	(arm_stopped_data_address): Likewise.
+	(arm_new_process): Likewise.
+	(arm_new_thread): Likewise.
+	(arm_prepare_to_resume): Likewise.
+	(the_low_target): Register arm_insert_point, arm_remove_point,
+	arm_stopped_by_watchpoint, arm_stopped_data_address, arm_new_process,
+	arm_new_thread, and arm_prepare_to_resume.
+
+2011-08-15  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* version.in: Bump version.
+
+2011-08-15  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	GDB Linaro 7.3-2011.08 released.
+
+	gdb/
+	* version.in: Update.
+
+2011-08-12  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #804401
+	Backport from mainline:
+
+	2011-08-12  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.threads/pthreads.exp: Enable on non-native configurations.
+	* gdb.mi/mi-pthreads.exp: Likewise.
+	* gdb.mi/mi2-pthreads.exp: Likewise.
+	* gdb.mi/gdb669.exp.exp: Likewise.
+
+2011-08-04  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #804396
+	Backport from mainline:
+
+	2011-08-04  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.threads/thread-find.exp: Support remote targets.
+
+	2011-08-04  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.base/nostdlib.exp: Skip on gdb_stub targets.
+	* gdb.base/watch-vfork.exp: Skip on remote targets.
+
+2011-08-04  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #804387
+	Backport from mainline:
+
+	2011-08-04  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.base/jit.exp: Download solib_binfile to target.
+	* gdb.base/jit-so.exp:  Likewise.  Also, use gdb_load_shlibs
+	and call dlopen without full path name.
+	* gdb.cp/infcall-dlopen.exp: Use gdb_load_shlibs and call
+	dlopen without full path name.
+
+2011-08-04  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #804396
+	Backport from mainline:
+
+	2011-07-22  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.python/py-breakpoint.exp: Re-set can-use-hw-watchpoints
+	flag after restarting GDB if necessary.
+
+	2011-06-28  Yao Qi  <yao@codesourcery.com>
+
+	gdb/testsuite/
+	* gdb.cp/exception.cc: Don't include iostream.
+	(bar): Remove print statement.
+	(catcher): New.
+	(main): Remove print statements.  Call function catcher.
+	* gdb.cp/exception.exp : Don't match inferior's output in regexp.
+	Set breakpoint on catcher, and check the value of parameter.
+
+	2011-06-23  Yao Qi  <yao@codesourcery.com>
+
+	gdb/testsuite/
+	* gdb.threads/execl.exp: Skip on remote target.
+
+	2011-06-14  Yao Qi  <yao@codesourcery.com>
+
+	gdb/testsuite/
+	* gdb.threads/ia64-sigill.exp: Remove "set debug lin-lwp 1".
+
+2011-08-04  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #804392
+	Backport from mainline:
+
+	2011-07-26  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.python/py-mi.exp: Avoid '+' in filenames.  Call C version of
+	executable file "${binfile}", C++ version "${binfile}-cxx".
+	* gdb.python/py-prettyprint.exp: Likewise.
+	* gdb.python/py-symbol.exp: Likewise.
+	* gdb.python/py-type.exp: Likewise.
+	* gdb.python/py-value.exp: Likewise.
+	* gdb.python/py-template.exp (test_template_arg): Pass full executable
+	file name instead of just suffix.
+
+	2011-07-22  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.python/py-mi.exp: Use different file names for different
+	versions of the executable under test.
+	* gdb.python/py-prettyprint.exp: Likewise.
+	* gdb.python/py-symbol.exp: Likewise.
+	* gdb.python/py-template.exp: Likewise.
+	* gdb.python/py-type.exp: Likewise.
+	* gdb.python/py-value.exp: Likewise.
+
+2011-08-04  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #804387
+	Backport from mainline:
+
+	2011-07-22  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.python/py-shared.exp: Call gdb_load_shlibs.
+
+	2011-07-15  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* gdb.base/type-opaque.exp: Use gdb_load_shlibs.  Run test on
+	remote targets as well.
+
+	2011-07-15  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* lib/gdb.exp (gdb_compile_shlib_pthreads): New helper.
+	* gdb.threads/tls-shared.exp: Use it.  Call gdb_load_shlibs.
+
+	2011-07-15  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/testsuite/
+	* lib/gdb.exp (gdb_compile): Specify rpath if the *target* is
+	a remote machine, not the host.
+	(gdb_compile_shlib): Set soname if target is remote.
+
+2011-08-02  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #615996
+
+	gdb/testsuite/
+	* gdb.cp/templates.exp: Update KFAIL patterns for PR 8216 to
+	also accept the ARM ABI.
+
+2011-08-02  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #615972
+	Backport from mainline:
+
+	include/elf/
+	* common.h (NT_ARM_VFP): Define.
+
+	bfd/
+	* elf-bfd.h (elfcore_write_arm_vfp): Add prototype.
+	* elf.c (elfcore_grok_arm_vfp): New function.
+	(elfcore_grok_note): Call it to handle NT_ARM_VFP notes.
+	(elfcore_write_arm_vfp): New function.
+	(elfcore_write_register_note): Call it to handle .reg-arm-vfp.
+
+	gdb/
+	* arm-linux-tdep.c: Include "auxv.h".
+	(AT_HWCAP): Define.
+	(ARM_LINUX_SIZEOF_VFP): Define.
+	(arm_linux_supply_vfp): New function.
+	(arm_linux_collect_vfp): Likewise.
+	(arm_linux_regset_from_core_section): Handle .reg-arm-vfp sections.
+	(arm_linux_fpa_regset_sections): New variable.
+	(arm_linux_vfp_regset_sections): Likewise.
+	(arm_linux_core_read_description): New function.
+	(arm_linux_init_abi): Install arm_linux_core_read_description and
+	arm_linux_fpa_regset_sections or arm_linux_vfp_regset_sections as
+	appropriate for the architecture.
+	* arm-tdep.h (struct gdbarch_tdep): Add member "vfpregset".
+	(tdesc_arm_with_m): Declare.
+	(tdesc_arm_with_iwmmxt): Likewise.
+	(tdesc_arm_with_vfpv2): Likewise.
+	(tdesc_arm_with_vfpv3): Likewise.
+	(tdesc_arm_with_neon): Likewise.
+	* arm-linux-nat.c: Move features/*.c includes ...
+	* arm-tdep.c: ... here.
+	* arm-linux-nat.c (arm_linux_read_description): Move initializing
+	target description data structures ...
+	* arm-tdep.c (_initialize_arm_tdep): ... here.
+	* arm-linux-nat.c (HWCAP_VFP, HWCAP_IWMMXT, HWCAP_NEON, HWCAP_VFPv3,
+	HWCAP_VFPv3D16): Move definitions ...
+	* arm-linux-tdep.h: ... here.
+
+2011-08-02  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #615978
+	Backport from mainline:
+
+	2011-04-28  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* infrun.c (proceed): Revert previous change.
+	(resume): Instead, handle the case of signal delivery while stepping
+	off a breakpoint location here, and only if software single-stepping
+	is used.  Handle nested signals.
+
+	gdb/testsuite/
+	* gdb.base/signest.exp: New file.
+	* gdb.base/signest.c: Likewise.
+
+	2011-04-27  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* infrun.c (proceed): Do not single-step into signal delivery
+	when stepping off a breakpoint location.
+	(insert_step_resume_breakpoint_at_frame): Move prototype earlier.
+	(insert_step_resume_breakpoint_at_caller): Likewise.
+	(insert_step_resume_breakpoint_at_sal): Likewise.
+	(insert_longjmp_resume_breakpoint): Likewise.
+
+	gdb/testsuite/
+	* gdb.base/annota1.exp: Accept breakpoints-invalid annotation
+	while delivering signal.
+
+	2011-04-27  Joel Brobecker  <brobecker@adacore.com>
+
+	gdb/
+	* procfs.c (procfs_pass_signals): Fix advance declaration.
+
+	2011-04-27  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* target.h (struct target_ops): Remove to_notice_signals;
+	add to_pass_signals.
+	(target_notice_signals): Remove.
+	(target_pass_signals): Add prototype.
+	* target.c (update_current_target): Remove to_notice_signals;
+	mention to_pass_signals.
+	(target_pass_signals): New function.
+	(debug_to_notice_signals): Remove.
+	(setup_target_debug): Do not install debug_to_notice_signals.
+
+	* infrun.c (signal_pass): New global.
+	(resume): Call target_pass_signals.
+	(handle_inferior_event): Report all signals while stepping over
+	non-steppable watchpoint.  Reset trap_expected to ensure breakpoints
+	are re-inserted when stepping over a signal handler.
+	(signal_cache_update): New function.
+	(signal_stop_update): Call it.
+	(signal_print_update): Likewise.
+	(signal_pass_update): Likewise.
+	(handle_command): Call signal_cache_update and target_pass_signals
+	instead of target_notice_signals.
+	(_initialize_infrun): Initialize signal_pass.
+
+	* linux-nat.c (pass_mask): New global.
+	(linux_nat_pass_signals): New function.
+	(linux_nat_create_inferior): Report all signals initially.
+	(linux_nat_attach): Likewise.
+	(linux_nat_resume): Use pass_mask to decide whether to directly
+	handle an inferior signal.
+	(linux_nat_wait_1): Likewise.
+	(linux_nat_add_target): Install to_pass_signals callback.
+
+	* nto-procfs.c (notice_signals): Remove.
+	(procfs_resume): Do not call notice_signals.
+	(procfs_notice_signals): Remove.
+	(procfs_pass_signals): New function.
+	(init_procfs_ops): Install to_pass_signals callback instead of
+	to_notice_signals callback.
+	(_initialize_procfs): Report all signals initially.
+
+	* procfs.c (procfs_notice_signals): Remove.
+	(procfs_pass_signals): New function.
+	(procfs_target): Install to_pass_signals callback instead of
+	to_notice_signals callback.
+	(register_gdb_signals): Remove.
+	(procfs_debug_inferior): Report all signals initially.
+	(procfs_init_inferior): Remove redundant register_gdb_signals call.
+
+	* remote.c (remote_pass_signals): Add numsigs and pass_signals
+	parameters; use them instead of calling signal_..._state routines.
+	(remote_notice_signals): Remove.
+	(remote_start_remote): Report all signals initially.
+	(remote_resume): Do not call remote_pass_signals.
+	(_initialize_remote): Install to_pass_signals callback instead of
+	to_notice_signals callback.
+
+	2011-04-26  Aleksandar Ristovski  <aristovski@qnx.com>
+
+	gdb/
+	* nto-procfs.c (procfs_insert_hw_watchpoint): Fix prototype.
+	(procfs_remove_hw_watchpoint): Likewise.
+
+2011-08-02  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	* src-release: Support gdb-linaro packages.
+
+	gdb/
+	* version.in: Set to Linaro GDB version number.
+
+	* configure.ac (PKGVERSION, BUGURL): Refer to Linaro.
+	* configure: Regenerate.
+
+	gdb/gdbserver/
+	* configure.ac (PKGVERSION, BUGURL): Refer to Linaro.
+	* configure: Regenerate.
+
