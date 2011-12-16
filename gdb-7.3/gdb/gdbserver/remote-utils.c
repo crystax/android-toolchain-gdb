@@ -70,6 +70,14 @@
 #include <sys/iomgr.h>
 #endif /* __QNX__ */
 
+#ifdef __ANDROID__
+#define HAVE_SYS_UN_H 1
+#endif
+
+#ifdef HAVE_SYS_UN_H
+#include <sys/un.h>
+#endif
+
 #ifndef HAVE_SOCKLEN_T
 typedef int socklen_t;
 #endif
@@ -208,6 +216,57 @@ remote_open (char *name)
 {
   char *port_str;
 
+#ifdef HAVE_SYS_UN_H
+  if (name[0] == '+')
+  {
+#ifdef USE_WIN32API
+    error ("Only <host>:<port> is supported on this platform.");
+#else
+    struct sockaddr_un sockaddr;
+    socklen_t sockaddrlen;
+    int tmp_desc;
+
+    name += 1; // skip the initial +
+
+    tmp_desc = socket (AF_UNIX, SOCK_STREAM, 0);
+    if (tmp_desc < 0)
+      perror_with_name ("Could not create Unix-domain socket");
+
+    memset (&sockaddr, 0, sizeof sockaddr);
+    sockaddr.sun_family = AF_UNIX;
+    strlcpy(sockaddr.sun_path, name, sizeof sockaddr.sun_path);
+
+    unlink (sockaddr.sun_path);
+    sockaddrlen = sizeof(sockaddr.sun_family) + strlen(sockaddr.sun_path)+1;
+    if (bind (tmp_desc, (struct sockaddr *)&sockaddr, sockaddrlen) < 0 ||
+        listen (tmp_desc, 1) < 0)
+      perror_with_name ("Could not bind to Unix-domain socket");
+
+    fprintf (stderr, "Listening on sockaddr socket %s\n", sockaddr.sun_path);
+    fflush (stderr);
+
+    sockaddrlen = sizeof (sockaddr);
+    remote_desc = accept (tmp_desc, (struct sockaddr *)&sockaddr, &sockaddrlen);
+    if (remote_desc < 0)
+      perror_with_name ("Unix-domain accept failed");
+
+    close (tmp_desc);
+    signal (SIGPIPE, SIG_IGN);
+
+    fprintf (stderr, "Remote debugging using %s\n", name);
+
+    transport_is_reliable = 0;
+
+    enable_async_notification (remote_desc);
+
+    /* Register the event loop handler.  */
+    add_file_handler (remote_desc, handle_serial_event, NULL);
+#endif
+  }
+  else
+  {
+#endif /* HAVE_SYS_UN_H */
+
   port_str = strchr (name, ':');
   if (port_str == NULL)
     {
@@ -343,6 +402,9 @@ remote_open (char *name)
 
       transport_is_reliable = 1;
     }
+#ifdef HAVE_SYS_UN_H
+  }
+#endif /* HAVE_SYS_UN_H */
 }
 
 void
