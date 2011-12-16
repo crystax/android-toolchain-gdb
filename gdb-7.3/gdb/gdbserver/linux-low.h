@@ -21,6 +21,12 @@
 #include <thread_db.h>
 #endif
 
+#ifdef __ANDROID__
+#define PTRACE_ARG3_TYPE void *
+#define PTRACE_ARG4_TYPE void *
+#define PTRACE_XFER_TYPE long
+#endif
+
 #include "gdb_proc_service.h"
 
 #ifdef HAVE_LINUX_REGSETS

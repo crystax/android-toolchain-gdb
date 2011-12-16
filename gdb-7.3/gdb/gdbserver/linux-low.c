@@ -204,10 +204,6 @@ struct pending_signals
   struct pending_signals *prev;
 };
 
-#define PTRACE_ARG3_TYPE void *
-#define PTRACE_ARG4_TYPE void *
-#define PTRACE_XFER_TYPE long
-
 #ifdef HAVE_LINUX_REGSETS
 static char *disabled_regsets;
 static int num_regsets;
@@ -2546,6 +2542,18 @@ kill_lwp (unsigned long lwpid, int signo)
 	tkill_failed = 1;
       }
   }
+#elif defined(__ANDROID__)
+  extern int tkill(int, int);
+  if (!tkill_failed)
+    {
+      int ret = tkill(lwpid, signo);
+      if (errno != ENOSYS)
+        return ret;
+      errno = 0;
+      tkill_failed = 1;
+    }
+#else
+#  error SIGNAL HANDLING WILL NOT WORK!!
 #endif
 
   return kill (lwpid, signo);
@@ -3854,7 +3862,7 @@ regsets_fetch_inferior_registers (struct regcache *regcache)
 	data = buf;
 
 #ifndef __sparc__
-      res = ptrace (regset->get_request, pid, nt_type, data);
+      res = ptrace (regset->get_request, pid, (PTRACE_ARG3_TYPE)nt_type, data);
 #else
       res = ptrace (regset->get_request, pid, data, nt_type);
 #endif
@@ -3927,7 +3935,7 @@ regsets_store_inferior_registers (struct regcache *regcache)
 	data = buf;
 
 #ifndef __sparc__
-      res = ptrace (regset->get_request, pid, nt_type, data);
+      res = ptrace (regset->get_request, pid, (PTRACE_ARG3_TYPE)nt_type, data);
 #else
       res = ptrace (regset->get_request, pid, &iov, data);
 #endif
@@ -3939,7 +3947,7 @@ regsets_store_inferior_registers (struct regcache *regcache)
 
 	  /* Only now do we write the register set.  */
 #ifndef __sparc__
-	  res = ptrace (regset->set_request, pid, nt_type, data);
+	  res = ptrace (regset->set_request, pid, (PTRACE_ARG3_TYPE)nt_type, data);
 #else
 	  res = ptrace (regset->set_request, pid, data, nt_type);
 #endif
