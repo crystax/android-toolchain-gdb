@@ -14956,7 +14956,7 @@ case ${host} in
 
 $as_echo "#define USE_WIN32API 1" >>confdefs.h
 
-    WIN32LIBS="$WIN32LIBS -lws2_32"
+    WIN32LIBS="$WIN32LIBS -lws2_32 -lmsvcrt"
     ;;
 esac
 

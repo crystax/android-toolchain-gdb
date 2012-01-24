@@ -209,7 +209,7 @@ esac
 if test "${srv_mingwce}" = "yes"; then
   LIBS="$LIBS -lws2"
 elif test "${srv_mingw}" = "yes"; then
-  LIBS="$LIBS -lws2_32"
+  LIBS="$LIBS -lws2_32 -lmsvcrt"
 elif test "${srv_qnx}" = "yes"; then
   LIBS="$LIBS -lsocket"
 elif test "${srv_lynxos}" = "yes"; then
