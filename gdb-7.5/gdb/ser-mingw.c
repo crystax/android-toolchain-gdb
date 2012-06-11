@@ -22,6 +22,7 @@
 #include "ser-base.h"
 #include "ser-tcp.h"
 
+#include <winsock2.h>
 #include <windows.h>
 #include <conio.h>
 
