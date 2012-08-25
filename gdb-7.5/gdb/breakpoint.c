@@ -2391,6 +2391,7 @@ insert_bp_location (struct bp_location *bl,
      we have a breakpoint inserted at that address and thus
      read the breakpoint instead of returning the data saved in
      the breakpoint location's shadow contents.  */
+  bl->target_info.requested_address = bl->requested_address;
   bl->target_info.placed_address = bl->address;
   bl->target_info.placed_address_space = bl->pspace->aspace;
   bl->target_info.length = bl->length;
@@ -14724,6 +14725,7 @@ deprecated_insert_raw_breakpoint (struct gdbarch *gdbarch,
 
   bp_tgt = XZALLOC (struct bp_target_info);
 
+  bp_tgt->requested_address = NULL;
   bp_tgt->placed_address_space = aspace;
   bp_tgt->placed_address = pc;
 
