@@ -2,8 +2,7 @@
 
 # Architecture commands for GDB, the GNU debugger.
 #
-# Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
-# 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+# Copyright (C) 1998-2012 Free Software Foundation, Inc.
 #
 # This file is part of GDB.
 #
@@ -362,6 +361,9 @@ v:int:long_bit:::8 * sizeof (long):4*TARGET_CHAR_BIT::0
 # Number of bits in a long long or unsigned long long for the target
 # machine.
 v:int:long_long_bit:::8 * sizeof (LONGEST):2*gdbarch->long_bit::0
+# Alignment of a long long or unsigned long long for the target
+# machine.
+v:int:long_long_align_bit:::8 * sizeof (LONGEST):2*gdbarch->long_bit::0
 
 # The ABI default bit-size and format for "half", "float", "double", and
 # "long double".  These bit/format pairs should eventually be combined
@@ -418,6 +420,11 @@ F:void:write_pc:struct regcache *regcache, CORE_ADDR val:regcache, val
 m:void:virtual_frame_pointer:CORE_ADDR pc, int *frame_regnum, LONGEST *frame_offset:pc, frame_regnum, frame_offset:0:legacy_virtual_frame_pointer::0
 #
 M:enum register_status:pseudo_register_read:struct regcache *regcache, int cookednum, gdb_byte *buf:regcache, cookednum, buf
+# Read a register into a new struct value.  If the register is wholly
+# or partly unavailable, this should call mark_value_bytes_unavailable
+# as appropriate.  If this is defined, then pseudo_register_read will
+# never be called.
+M:struct value *:pseudo_register_read_value:struct regcache *regcache, int cookednum:regcache, cookednum
 M:void:pseudo_register_write:struct regcache *regcache, int cookednum, const gdb_byte *buf:regcache, cookednum, buf
 #
 v:int:num_regs:::0:-1
@@ -624,6 +631,12 @@ M:const struct regset *:regset_from_core_section:const char *sect_name, size_t s
 # Supported register notes in a core file.
 v:struct core_regset_section *:core_regset_sections:const char *name, int len::::::host_address_to_string (gdbarch->core_regset_sections)
 
+# Create core file notes
+M:char *:make_corefile_notes:bfd *obfd, int *note_size:obfd, note_size
+
+# Find core file memory regions
+M:int:find_memory_regions:find_memory_region_ftype func, void *data:func, data
+
 # Read offset OFFSET of TARGET_OBJECT_LIBRARIES formatted shared libraries list from
 # core file into buffer READBUF with length LEN.
 M:LONGEST:core_xfer_shared_libraries:gdb_byte *readbuf, ULONGEST offset, LONGEST len:readbuf, offset, len
@@ -632,7 +645,7 @@ M:LONGEST:core_xfer_shared_libraries:gdb_byte *readbuf, ULONGEST offset, LONGEST
 M:char *:core_pid_to_str:ptid_t ptid:ptid
 
 # BFD target to use when generating a core file.
-V:const char *:gcore_bfd_target:::0:0:::gdbarch->gcore_bfd_target
+V:const char *:gcore_bfd_target:::0:0:::pstring (gdbarch->gcore_bfd_target)
 
 # If the elements of C++ vtables are in-place function descriptors rather
 # than normal function pointers (which may point to code or a descriptor),
@@ -815,6 +828,17 @@ v:const char *:solib_symbols_extension:::::::pstring (gdbarch->solib_symbols_ext
 # is, absolute paths include a drive name, and the backslash is
 # considered a directory separator.
 v:int:has_dos_based_file_system:::0:0::0
+
+# Generate bytecodes to collect the return address in a frame.
+# Since the bytecodes run on the target, possibly with GDB not even
+# connected, the full unwinding machinery is not available, and
+# typically this function will issue bytecodes for one or more likely
+# places that the return address may be found.
+m:void:gen_return_address:struct agent_expr *ax, struct axs_value *value, CORE_ADDR scope:ax, value, scope::default_gen_return_address::0
+
+# Implement the "info proc" command.
+M:void:info_proc:char *args, enum info_proc_what what:args, what
+
 EOF
 }
 
@@ -929,6 +953,7 @@ struct displaced_step_closure;
 struct core_regset_section;
 struct syscall;
 struct agent_expr;
+struct axs_value;
 
 /* The architecture associated with the connection to the target.
  
@@ -1949,7 +1974,7 @@ gdbarch_register (enum bfd_architecture bfd_architecture,
     {
       if (bfd_architecture == (*curr)->bfd_architecture)
 	internal_error (__FILE__, __LINE__,
-                        _("gdbarch: Duplicate registraration "
+                        _("gdbarch: Duplicate registration "
 			  "of architecture (%s)"),
 	                bfd_arch_info->printable_name);
     }

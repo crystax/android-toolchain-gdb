@@ -23,7 +23,7 @@ developing GNU and promoting software freedom."
    This file documents the GNU debugger GDB.
 
    This is the Tenth Edition, of `Debugging with GDB: the GNU
-Source-Level Debugger' for GDB (Linaro GDB) Version 7.3-2011.12.
+Source-Level Debugger' for GDB (Linaro GDB) Version 7.4-2012.06.
 
    Copyright (C) 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996,
 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
@@ -48,7 +48,7 @@ Debugging with GDB
 
 This file describes GDB, the GNU symbolic debugger.
 
-   This is the Tenth Edition, for GDB (Linaro GDB) Version 7.3-2011.12.
+   This is the Tenth Edition, for GDB (Linaro GDB) Version 7.4-2012.06.
 
    Copyright (C) 1988-2010 Free Software Foundation, Inc.
 
@@ -108,6 +108,7 @@ in general.  We will miss him.
 * Operating System Information:: Getting additional information from
                                  the operating system
 * Trace File Format::		GDB trace file format
+* Index Section Format::        .gdb_index section format
 * Copying::			GNU General Public License says
                                 how you can copy and share GDB
 * GNU Free Documentation License::  The license for this documentation
@@ -488,7 +489,7 @@ Let us use GDB to try to see what is going on.
      There is absolutely no warranty for GDB; type "show warranty"
       for details.
 
-     GDB 7.3-2011.12, Copyright 1999 Free Software Foundation, Inc...
+     GDB 7.4-2012.06, Copyright 1999 Free Software Foundation, Inc...
      (gdb)
 
 GDB reads only enough symbol data to know where to find the rest when
@@ -1097,9 +1098,11 @@ If you need to execute occasional shell commands during your debugging
 session, there is no need to leave or suspend GDB; you can just use the
 `shell' command.
 
-`shell COMMAND STRING'
-     Invoke a standard shell to execute COMMAND STRING.  If it exists,
-     the environment variable `SHELL' determines which shell to run.
+`shell COMMAND-STRING'
+`!COMMAND-STRING'
+     Invoke a standard shell to execute COMMAND-STRING.  Note that no
+     space is needed between `!' and COMMAND-STRING.  If it exists, the
+     environment variable `SHELL' determines which shell to run.
      Otherwise GDB uses the default shell (`/bin/sh' on Unix systems,
      `COMMAND.COM' on MS-DOS, etc.).
 
@@ -1307,8 +1310,10 @@ structure, GDB also tries(1) to limit completions to the field names
 available in the type of the left-hand-side:
 
      (gdb) p gdb_stdout.M-?
-     magic      to_delete  to_fputs   to_put     to_rewind
-     to_data    to_flush   to_isatty  to_read    to_write
+     magic                to_fputs             to_rewind
+     to_data              to_isatty            to_write
+     to_delete            to_put               to_write_async_safe
+     to_flush             to_read
 
 This is because the `gdb_stdout' is a variable of the type `struct
 ui_file' that is defined in GDB sources as follows:
@@ -1318,6 +1323,7 @@ ui_file' that is defined in GDB sources as follows:
         int *magic;
         ui_file_flush_ftype *to_flush;
         ui_file_write_ftype *to_write;
+        ui_file_write_async_safe_ftype *to_write_async_safe;
         ui_file_fputs_ftype *to_fputs;
         ui_file_read_ftype *to_read;
         ui_file_delete_ftype *to_delete;
@@ -1544,13 +1550,18 @@ if your GNU C compiler has this option, do not use it.
    GDB knows about preprocessor macros and can show you their expansion
 (*note Macros::).  Most compilers do not include information about
 preprocessor macros in the debugging information if you specify the
-`-g' flag alone, because this information is rather large.  Version 3.1
-and later of GCC, the GNU C compiler, provides macro information if you
-specify the options `-gdwarf-2' and `-g3'; the former option requests
-debugging information in the Dwarf 2 format, and the latter requests
-"extra information".  In the future, we hope to find more compact ways
-to represent macro information, so that it can be included with `-g'
-alone.
+`-g' flag alone.  Version 3.1 and later of GCC, the GNU C compiler,
+provides macro information if you are using the DWARF debugging format,
+and specify the option `-g3'.
+
+   *Note Options for Debugging Your Program or GCC: (gcc.info)Debugging
+Options, for more information on GCC options affecting debug
+information.
+
+   You will have the best debugging experience if you use the latest
+version of the DWARF debugging format that your compiler supports.
+DWARF is currently the most expressive and best supported debugging
+format in GDB.
 
 
 File: gdb.info,  Node: Starting,  Next: Arguments,  Prev: Compilation,  Up: Running
@@ -2360,15 +2371,23 @@ watchpoints in programs with multiple threads.
 `set libthread-db-search-path [PATH]'
      If this variable is set, PATH is a colon-separated list of
      directories GDB will use to search for `libthread_db'.  If you
-     omit PATH, `libthread-db-search-path' will be reset to an empty
-     list.
+     omit PATH, `libthread-db-search-path' will be reset to its default
+     value (`$sdir:$pdir' on GNU/Linux and Solaris systems).
+     Internally, the default value comes from the
+     `LIBTHREAD_DB_SEARCH_PATH' macro.
 
      On GNU/Linux and Solaris systems, GDB uses a "helper"
      `libthread_db' library to obtain information about threads in the
      inferior process.  GDB will use `libthread-db-search-path' to find
-     `libthread_db'.  If that fails, GDB will continue with default
-     system shared library directories, and finally the directory from
-     which `libpthread' was loaded in the inferior process.
+     `libthread_db'.
+
+     A special entry `$sdir' for `libthread-db-search-path' refers to
+     the default system directories that are normally searched for
+     loading shared libraries.
+
+     A special entry `$pdir' for `libthread-db-search-path' refers to
+     the directory from which `libpthread' was loaded in the inferior
+     process.
 
      For any `libthread_db' library GDB finds in above directories, GDB
      attempts to initialize it with the current inferior process.  If
@@ -2673,6 +2692,8 @@ any time.
 
 * Breakpoints::                 Breakpoints, watchpoints, and catchpoints
 * Continuing and Stepping::     Resuming execution
+* Skipping Over Functions and Files::
+                                Skipping over functions and files
 * Signals::                     Signals
 * Thread Stops::                Stopping and starting multi-thread programs
 
@@ -2936,6 +2957,8 @@ Conditions: Conditions.).
    It is possible that a breakpoint corresponds to several locations in
 your program.  Examples of this situation are:
 
+   * Multiple functions in the program may have the same name.
+
    * For a C++ constructor, the GCC compiler generates several
      instances of the function body, used in different cases.
 
@@ -2946,7 +2969,7 @@ your program.  Examples of this situation are:
      several places where that function is inlined.
 
    In all those cases, GDB will insert a breakpoint at all the relevant
-locations(1).
+locations.
 
    A breakpoint with multiple locations is displayed in the breakpoint
 table using several rows--one header row, followed by one row for each
@@ -3083,13 +3106,6 @@ internal breakpoints are assigned negative numbers, starting with `-1';
 breakpoints with the GDB maintenance command `maint info breakpoints'
 (*note maint info breakpoints::).
 
-   ---------- Footnotes ----------
-
-   (1) As of this writing, multiple-location breakpoints work only if
-there's line number information for all the locations.  This means that
-they will generally not work in system libraries, unless you have debug
-info with line numbers for them.
-
 
 File: gdb.info,  Node: Set Watchpoints,  Next: Set Catchpoints,  Prev: Set Breaks,  Up: Breakpoints
 
@@ -3132,7 +3148,7 @@ culprit.)
 x86-based targets, GDB includes support for hardware watchpoints, which
 do not slow down the running of your program.
 
-`watch [-l|-location] EXPR [thread THREADNUM]'
+`watch [-l|-location] EXPR [thread THREADNUM] [mask MASKVALUE]'
      Set a watchpoint for an expression.  GDB will break when the
      expression EXPR is written into by the program and its value
      changes.  The simplest (and the most popular) use of this command
@@ -3140,11 +3156,11 @@ do not slow down the running of your program.
 
           (gdb) watch foo
 
-     If the command includes a `[thread THREADNUM]' clause, GDB breaks
-     only when the thread identified by THREADNUM changes the value of
-     EXPR.  If any other threads change the value of EXPR, GDB will not
-     break.  Note that watchpoints restricted to a single thread in
-     this way only work with Hardware Watchpoints.
+     If the command includes a `[thread THREADNUM]' argument, GDB
+     breaks only when the thread identified by THREADNUM changes the
+     value of EXPR.  If any other threads change the value of EXPR, GDB
+     will not break.  Note that watchpoints restricted to a single
+     thread in this way only work with Hardware Watchpoints.
 
      Ordinarily a watchpoint respects the scope of variables in EXPR
      (see below).  The `-location' argument tells GDB to instead watch
@@ -3154,11 +3170,26 @@ do not slow down the running of your program.
      the watched memory.  If the expression's result does not have an
      address, then GDB will print an error.
 
-`rwatch [-l|-location] EXPR [thread THREADNUM]'
+     The `[mask MASKVALUE]' argument allows creation of masked
+     watchpoints, if the current architecture supports this feature
+     (e.g., PowerPC Embedded architecture, see *note PowerPC
+     Embedded::.)  A "masked watchpoint" specifies a mask in addition
+     to an address to watch.  The mask specifies that some bits of an
+     address (the bits which are reset in the mask) should be ignored
+     when matching the address accessed by the inferior against the
+     watchpoint address.  Thus, a masked watchpoint watches many
+     addresses simultaneously--those addresses whose unmasked bits are
+     identical to the unmasked bits in the watchpoint address.  The
+     `mask' argument implies `-location'.  Examples:
+
+          (gdb) watch foo mask 0xffff00ff
+          (gdb) watch *0xdeadbeef mask 0xffffff00
+
+`rwatch [-l|-location] EXPR [thread THREADNUM] [mask MASKVALUE]'
      Set a watchpoint that will break when the value of EXPR is read by
      the program.
 
-`awatch [-l|-location] EXPR [thread THREADNUM]'
+`awatch [-l|-location] EXPR [thread THREADNUM] [mask MASKVALUE]'
      Set a watchpoint that will break when EXPR is either read from or
      written into by the program.
 
@@ -3884,7 +3915,7 @@ action except in cases where the breakpoint is hit earlier or more
 frequently than expected.
 
 
-File: gdb.info,  Node: Continuing and Stepping,  Next: Signals,  Prev: Breakpoints,  Up: Stopping
+File: gdb.info,  Node: Continuing and Stepping,  Next: Skipping Over Functions and Files,  Prev: Breakpoints,  Up: Stopping
 
 5.2 Continuing and Stepping
 ===========================
@@ -4095,9 +4126,108 @@ interesting, until you see the problem happen.
      An argument is a repeat count, as in `next'.
 
 
-File: gdb.info,  Node: Signals,  Next: Thread Stops,  Prev: Continuing and Stepping,  Up: Stopping
+File: gdb.info,  Node: Skipping Over Functions and Files,  Next: Signals,  Prev: Continuing and Stepping,  Up: Stopping
 
-5.3 Signals
+5.3 Skipping Over Functions and Files
+=====================================
+
+The program you are debugging may contain some functions which are
+uninteresting to debug.  The `skip' comand lets you tell GDB to skip a
+function or all functions in a file when stepping.
+
+   For example, consider the following C function:
+
+     101     int func()
+     102     {
+     103         foo(boring());
+     104         bar(boring());
+     105     }
+
+Suppose you wish to step into the functions `foo' and `bar', but you
+are not interested in stepping through `boring'.  If you run `step' at
+line 103, you'll enter `boring()', but if you run `next', you'll step
+over both `foo' and `boring'!
+
+   One solution is to `step' into `boring' and use the `finish' command
+to immediately exit it.  But this can become tedious if `boring' is
+called from many places.
+
+   A more flexible solution is to execute `skip boring'.  This instructs
+GDB never to step into `boring'.  Now when you execute `step' at line
+103, you'll step over `boring' and directly into `foo'.
+
+   You can also instruct GDB to skip all functions in a file, with, for
+example, `skip file boring.c'.
+
+`skip [LINESPEC]'
+`skip function [LINESPEC]'
+     After running this command, the function named by LINESPEC or the
+     function containing the line named by LINESPEC will be skipped
+     over when stepping.  *Note Specify Location::.
+
+     If you do not specify LINESPEC, the function you're currently
+     debugging will be skipped.
+
+     (If you have a function called `file' that you want to skip, use
+     `skip function file'.)
+
+`skip file [FILENAME]'
+     After running this command, any function whose source lives in
+     FILENAME will be skipped over when stepping.
+
+     If you do not specify FILENAME, functions whose source lives in
+     the file you're currently debugging will be skipped.
+
+   Skips can be listed, deleted, disabled, and enabled, much like
+breakpoints.  These are the commands for managing your list of skips:
+
+`info skip [RANGE]'
+     Print details about the specified skip(s).  If RANGE is not
+     specified, print a table with details about all functions and
+     files marked for skipping.  `info skip' prints the following
+     information about each skip:
+
+    _Identifier_
+          A number identifying this skip.
+
+    _Type_
+          The type of this skip, either `function' or `file'.
+
+    _Enabled or Disabled_
+          Enabled skips are marked with `y'.  Disabled skips are marked
+          with `n'.
+
+    _Address_
+          For function skips, this column indicates the address in
+          memory of the function being skipped.  If you've set a
+          function skip on a function which has not yet been loaded,
+          this field will contain `<PENDING>'.  Once a shared library
+          which has the function is loaded, `info skip' will show the
+          function's address here.
+
+    _What_
+          For file skips, this field contains the filename being
+          skipped.  For functions skips, this field contains the
+          function name and its line number in the file where it is
+          defined.
+
+`skip delete [RANGE]'
+     Delete the specified skip(s).  If RANGE is not specified, delete
+     all skips.
+
+`skip enable [RANGE]'
+     Enable the specified skip(s).  If RANGE is not specified, enable
+     all skips.
+
+`skip disable [RANGE]'
+     Disable the specified skip(s).  If RANGE is not specified, disable
+     all skips.
+
+
+
+File: gdb.info,  Node: Signals,  Next: Thread Stops,  Prev: Skipping Over Functions and Files,  Up: Stopping
+
+5.4 Signals
 ===========
 
 A signal is an asynchronous event that can happen in a program.  The
@@ -4240,7 +4370,7 @@ referenced address that raised a segmentation fault.
 
 File: gdb.info,  Node: Thread Stops,  Prev: Signals,  Up: Stopping
 
-5.4 Stopping and Starting Multi-thread Programs
+5.5 Stopping and Starting Multi-thread Programs
 ===============================================
 
 GDB supports debugging programs with multiple threads (*note Debugging
@@ -4265,7 +4395,7 @@ debugger.
 
 File: gdb.info,  Node: All-Stop Mode,  Next: Non-Stop Mode,  Up: Thread Stops
 
-5.4.1 All-Stop Mode
+5.5.1 All-Stop Mode
 -------------------
 
 In all-stop mode, whenever your program stops under GDB for any reason,
@@ -4343,7 +4473,7 @@ run with the `set schedule-multiple' command.
 
 File: gdb.info,  Node: Non-Stop Mode,  Next: Background Execution,  Prev: All-Stop Mode,  Up: Thread Stops
 
-5.4.2 Non-Stop Mode
+5.5.2 Non-Stop Mode
 -------------------
 
 For some multi-threaded targets, GDB supports an optional mode of
@@ -4423,7 +4553,7 @@ on the previously current thread.
 
 File: gdb.info,  Node: Background Execution,  Next: Thread-Specific Breakpoints,  Prev: Non-Stop Mode,  Up: Thread Stops
 
-5.4.3 Background Execution
+5.5.3 Background Execution
 --------------------------
 
 GDB's execution commands have two variants:  the normal foreground
@@ -4503,7 +4633,7 @@ by using the `interrupt' command.
 
 File: gdb.info,  Node: Thread-Specific Breakpoints,  Next: Interrupted System Calls,  Prev: Background Execution,  Up: Thread Stops
 
-5.4.4 Thread-Specific Breakpoints
+5.5.4 Thread-Specific Breakpoints
 ---------------------------------
 
 When your program has multiple threads (*note Debugging Programs with
@@ -4535,7 +4665,7 @@ on all threads, or on a particular thread.
 
 File: gdb.info,  Node: Interrupted System Calls,  Next: Observer Mode,  Prev: Thread-Specific Breakpoints,  Up: Thread Stops
 
-5.4.5 Interrupted System Calls
+5.5.5 Interrupted System Calls
 ------------------------------
 
 There is an unfortunate side effect when using GDB to debug
@@ -4574,7 +4704,7 @@ prematurely, even though your program does not appear to stop.
 
 File: gdb.info,  Node: Observer Mode,  Prev: Interrupted System Calls,  Up: Thread Stops
 
-5.4.6 Observer Mode
+5.5.6 Observer Mode
 -------------------
 
 If you want to build on non-stop mode and observe program behavior
@@ -6178,18 +6308,29 @@ will print a message like this:
 
    To solve such problems, either recompile without optimizations, or
 use a different debug info format, if the compiler supports several such
-formats.  For example, GCC, the GNU C/C++ compiler, usually supports
-the `-gstabs+' option.  `-gstabs+' produces debug info in a format that
-is superior to formats such as COFF.  You may be able to use DWARF 2
-(`-gdwarf-2'), which is also an effective form for debug info.  *Note
-Options for Debugging Your Program or GCC: (gcc.info)Debugging Options.
-*Note C and C++: C, for more information about debug info formats that
-are best suited to C++ programs.
+formats.  *Note Compilation::, for more information on choosing compiler
+options.  *Note C and C++: C, for more information about debug info
+formats that are best suited to C++ programs.
 
    If you ask to print an object whose contents are unknown to GDB,
 e.g., because its data type is not completely specified by the debug
 information, GDB will say `<incomplete type>'.  *Note incomplete type:
 Symbols, for more about this.
+
+   If you append `@entry' string to a function parameter name you get
+its value at the time the function got called.  If the value is not
+available an error message is printed.  Entry values are available only
+with some compilers.  Entry values are normally also printed at the
+function parameter list according to *note set print entry-values::.
+
+     Breakpoint 1, d (i=30) at gdb.base/entry-value.c:29
+     29	  i++;
+     (gdb) next
+     30	  e (i);
+     (gdb) print i
+     $1 = 31
+     (gdb) print i@entry
+     $2 = 30
 
    Strings are identified as arrays of `char' values without specified
 signedness.  Arrays of either `signed char' or `unsigned char' get
@@ -6770,6 +6911,107 @@ shows that a variable `ptt' points at another variable `t', defined in
      Show how the value of arguments should be displayed when printing
      a frame.
 
+`set print entry-values VALUE'
+     Set printing of frame argument values at function entry.  In some
+     cases GDB can determine the value of function argument which was
+     passed by the function caller, even if the value was modified
+     inside the called function and therefore is different.  With
+     optimized code, the current value could be unavailable, but the
+     entry value may still be known.
+
+     The default value is `default' (see below for its description).
+     Older GDB behaved as with the setting `no'.  Compilers not
+     supporting this feature will behave in the `default' setting the
+     same way as with the `no' setting.
+
+     This functionality is currently supported only by DWARF 2
+     debugging format and the compiler has to produce
+     `DW_TAG_GNU_call_site' tags.  With GCC, you need to specify `-O
+     -g' during compilation, to get this information.
+
+     The VALUE parameter can be one of the following:
+
+    `no'
+          Print only actual parameter values, never print values from
+          function entry point.
+               #0  equal (val=5)
+               #0  different (val=6)
+               #0  lost (val=<optimized out>)
+               #0  born (val=10)
+               #0  invalid (val=<optimized out>)
+
+    `only'
+          Print only parameter values from function entry point.  The
+          actual parameter values are never printed.
+               #0  equal (val@entry=5)
+               #0  different (val@entry=5)
+               #0  lost (val@entry=5)
+               #0  born (val@entry=<optimized out>)
+               #0  invalid (val@entry=<optimized out>)
+
+    `preferred'
+          Print only parameter values from function entry point.  If
+          value from function entry point is not known while the actual
+          value is known, print the actual value for such parameter.
+               #0  equal (val@entry=5)
+               #0  different (val@entry=5)
+               #0  lost (val@entry=5)
+               #0  born (val=10)
+               #0  invalid (val@entry=<optimized out>)
+
+    `if-needed'
+          Print actual parameter values.  If actual parameter value is
+          not known while value from function entry point is known,
+          print the entry point value for such parameter.
+               #0  equal (val=5)
+               #0  different (val=6)
+               #0  lost (val@entry=5)
+               #0  born (val=10)
+               #0  invalid (val=<optimized out>)
+
+    `both'
+          Always print both the actual parameter value and its value
+          from function entry point, even if values of one or both are
+          not available due to compiler optimizations.
+               #0  equal (val=5, val@entry=5)
+               #0  different (val=6, val@entry=5)
+               #0  lost (val=<optimized out>, val@entry=5)
+               #0  born (val=10, val@entry=<optimized out>)
+               #0  invalid (val=<optimized out>, val@entry=<optimized out>)
+
+    `compact'
+          Print the actual parameter value if it is known and also its
+          value from function entry point if it is known.  If neither
+          is known, print for the actual value `<optimized out>'.  If
+          not in MI mode (*note GDB/MI::) and if both values are known
+          and identical, print the shortened `param=param@entry=VALUE'
+          notation.
+               #0  equal (val=val@entry=5)
+               #0  different (val=6, val@entry=5)
+               #0  lost (val@entry=5)
+               #0  born (val=10)
+               #0  invalid (val=<optimized out>)
+
+    `default'
+          Always print the actual parameter value.  Print also its
+          value from function entry point, but only if it is known.  If
+          not in MI mode (*note GDB/MI::) and if both values are known
+          and identical, print the shortened `param=param@entry=VALUE'
+          notation.
+               #0  equal (val=val@entry=5)
+               #0  different (val=6, val@entry=5)
+               #0  lost (val=<optimized out>, val@entry=5)
+               #0  born (val=10)
+               #0  invalid (val=<optimized out>)
+
+     For analysis messages on possible failures of frame argument
+     values at function entry resolution see *note set debug
+     entry-values::.
+
+`show print entry-values'
+     Show the method being used for printing of frame argument values
+     at function entry.
+
 `set print repeats'
      Set the threshold for suppressing display of repeated array
      elements.  When the number of consecutive identical elements of an
@@ -6926,7 +7168,10 @@ These settings are of interest when debugging C++ programs:
 `set print object on'
      When displaying a pointer to an object, identify the _actual_
      (derived) type of the object rather than the _declared_ type, using
-     the virtual function table.
+     the virtual function table.  Note that the virtual function table
+     is required--this feature can only work for objects that have
+     run-time type identification; a single virtual method in the
+     object's declared type is sufficient.
 
 `set print object off'
      Display only the declared type of objects, without reference to the
@@ -6969,233 +7214,4 @@ These settings are of interest when debugging C++ programs:
 `show print vtbl'
      Show whether C++ virtual function tables are pretty printed, or
      not.
-
-
-File: gdb.info,  Node: Pretty Printing,  Next: Value History,  Prev: Print Settings,  Up: Data
-
-10.9 Pretty Printing
-====================
-
-GDB provides a mechanism to allow pretty-printing of values using
-Python code.  It greatly simplifies the display of complex objects.
-This mechanism works for both MI and the CLI.
-
-* Menu:
-
-* Pretty-Printer Introduction::  Introduction to pretty-printers
-* Pretty-Printer Example::       An example pretty-printer
-* Pretty-Printer Commands::      Pretty-printer commands
-
-
-File: gdb.info,  Node: Pretty-Printer Introduction,  Next: Pretty-Printer Example,  Up: Pretty Printing
-
-10.9.1 Pretty-Printer Introduction
-----------------------------------
-
-When GDB prints a value, it first sees if there is a pretty-printer
-registered for the value.  If there is then GDB invokes the
-pretty-printer to print the value.  Otherwise the value is printed
-normally.
-
-   Pretty-printers are normally named.  This makes them easy to manage.
-The `info pretty-printer' command will list all the installed
-pretty-printers with their names.  If a pretty-printer can handle
-multiple data types, then its "subprinters" are the printers for the
-individual data types.  Each such subprinter has its own name.  The
-format of the name is PRINTER-NAME;SUBPRINTER-NAME.
-
-   Pretty-printers are installed by "registering" them with GDB.
-Typically they are automatically loaded and registered when the
-corresponding debug information is loaded, thus making them available
-without having to do anything special.
-
-   There are three places where a pretty-printer can be registered.
-
-   * Pretty-printers registered globally are available when debugging
-     all inferiors.
-
-   * Pretty-printers registered with a program space are available only
-     when debugging that program.  *Note Progspaces In Python::, for
-     more details on program spaces in Python.
-
-   * Pretty-printers registered with an objfile are loaded and unloaded
-     with the corresponding objfile (e.g., shared library).  *Note
-     Objfiles In Python::, for more details on objfiles in Python.
-
-   *Note Selecting Pretty-Printers::, for further information on how
-pretty-printers are selected,
-
-   *Note Writing a Pretty-Printer::, for implementing pretty printers
-for new types.
-
-
-File: gdb.info,  Node: Pretty-Printer Example,  Next: Pretty-Printer Commands,  Prev: Pretty-Printer Introduction,  Up: Pretty Printing
-
-10.9.2 Pretty-Printer Example
------------------------------
-
-Here is how a C++ `std::string' looks without a pretty-printer:
-
-     (gdb) print s
-     $1 = {
-       static npos = 4294967295,
-       _M_dataplus = {
-         <std::allocator<char>> = {
-           <__gnu_cxx::new_allocator<char>> = {
-             <No data fields>}, <No data fields>
-           },
-         members of std::basic_string<char, std::char_traits<char>,
-           std::allocator<char> >::_Alloc_hider:
-         _M_p = 0x804a014 "abcd"
-       }
-     }
-
-   With a pretty-printer for `std::string' only the contents are
-printed:
-
-     (gdb) print s
-     $2 = "abcd"
-
-
-File: gdb.info,  Node: Pretty-Printer Commands,  Prev: Pretty-Printer Example,  Up: Pretty Printing
-
-10.9.3 Pretty-Printer Commands
-------------------------------
-
-`info pretty-printer [OBJECT-REGEXP [NAME-REGEXP]]'
-     Print the list of installed pretty-printers.  This includes
-     disabled pretty-printers, which are marked as such.
-
-     OBJECT-REGEXP is a regular expression matching the objects whose
-     pretty-printers to list.  Objects can be `global', the program
-     space's file (*note Progspaces In Python::), and the object files
-     within that program space (*note Objfiles In Python::).  *Note
-     Selecting Pretty-Printers::, for details on how GDB looks up a
-     printer from these three objects.
-
-     NAME-REGEXP is a regular expression matching the name of the
-     printers to list.
-
-`disable pretty-printer [OBJECT-REGEXP [NAME-REGEXP]]'
-     Disable pretty-printers matching OBJECT-REGEXP and NAME-REGEXP.  A
-     disabled pretty-printer is not forgotten, it may be enabled again
-     later.
-
-`enable pretty-printer [OBJECT-REGEXP [NAME-REGEXP]]'
-     Enable pretty-printers matching OBJECT-REGEXP and NAME-REGEXP.
-
-   Example:
-
-   Suppose we have three pretty-printers installed: one from library1.so
-named `foo' that prints objects of type `foo', and another from
-library2.so named `bar' that prints two types of objects, `bar1' and
-`bar2'.
-
-     (gdb) info pretty-printer
-     library1.so:
-       foo
-     library2.so:
-       bar
-         bar1
-         bar2
-     (gdb) info pretty-printer library2
-     library2.so:
-       bar
-         bar1
-         bar2
-     (gdb) disable pretty-printer library1
-     1 printer disabled
-     2 of 3 printers enabled
-     (gdb) info pretty-printer
-     library1.so:
-       foo [disabled]
-     library2.so:
-       bar
-         bar1
-         bar2
-     (gdb) disable pretty-printer library2 bar:bar1
-     1 printer disabled
-     1 of 3 printers enabled
-     (gdb) info pretty-printer library2
-     library1.so:
-       foo [disabled]
-     library2.so:
-       bar
-         bar1 [disabled]
-         bar2
-     (gdb) disable pretty-printer library2 bar
-     1 printer disabled
-     0 of 3 printers enabled
-     (gdb) info pretty-printer library2
-     library1.so:
-       foo [disabled]
-     library2.so:
-       bar [disabled]
-         bar1 [disabled]
-         bar2
-
-   Note that for `bar' the entire printer can be disabled, as can each
-individual subprinter.
-
-
-File: gdb.info,  Node: Value History,  Next: Convenience Vars,  Prev: Pretty Printing,  Up: Data
-
-10.10 Value History
-===================
-
-Values printed by the `print' command are saved in the GDB "value
-history".  This allows you to refer to them in other expressions.
-Values are kept until the symbol table is re-read or discarded (for
-example with the `file' or `symbol-file' commands).  When the symbol
-table changes, the value history is discarded, since the values may
-contain pointers back to the types defined in the symbol table.
-
-   The values printed are given "history numbers" by which you can
-refer to them.  These are successive integers starting with one.
-`print' shows you the history number assigned to a value by printing
-`$NUM = ' before the value; here NUM is the history number.
-
-   To refer to any previous value, use `$' followed by the value's
-history number.  The way `print' labels its output is designed to
-remind you of this.  Just `$' refers to the most recent value in the
-history, and `$$' refers to the value before that.  `$$N' refers to the
-Nth value from the end; `$$2' is the value just prior to `$$', `$$1' is
-equivalent to `$$', and `$$0' is equivalent to `$'.
-
-   For example, suppose you have just printed a pointer to a structure
-and want to see the contents of the structure.  It suffices to type
-
-     p *$
-
-   If you have a chain of structures where the component `next' points
-to the next one, you can print the contents of the next one with this:
-
-     p *$.next
-
-You can print successive links in the chain by repeating this
-command--which you can do by just typing <RET>.
-
-   Note that the history records values, not expressions.  If the value
-of `x' is 4 and you type these commands:
-
-     print x
-     set x=5
-
-then the value recorded in the value history by the `print' command
-remains 4 even though the value of `x' has changed.
-
-`show values'
-     Print the last ten values in the value history, with their item
-     numbers.  This is like `p $$9' repeated ten times, except that
-     `show values' does not change the history.
-
-`show values N'
-     Print ten history values centered on history item number N.
-
-`show values +'
-     Print ten history values just after the values last printed.  If
-     no more values are available, `show values +' produces no display.
-
-   Pressing <RET> to repeat `show values N' has exactly the same effect
-as `show values +'.
 

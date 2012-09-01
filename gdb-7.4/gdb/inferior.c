@@ -1,6 +1,6 @@
 /* Multi-process control for GDB, the GNU debugger.
 
-   Copyright (C) 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+   Copyright (C) 2008-2012 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -31,6 +31,7 @@
 #include "symfile.h"
 #include "environ.h"
 #include "cli/cli-utils.h"
+#include "continuations.h"
 
 void _initialize_inferiors (void);
 
@@ -275,6 +276,7 @@ exit_inferior_1 (struct inferior *inftoex, int silent)
   observer_notify_inferior_exit (inf);
 
   inf->pid = 0;
+  inf->fake_pid_p = 0;
   if (inf->vfork_parent != NULL)
     {
       inf->vfork_parent->vfork_child = NULL;
@@ -731,10 +733,10 @@ inferior_command (char *args, int from_tty)
     }
 
   if (inf->pid != 0 && is_running (inferior_ptid))
-    ui_out_text (uiout, "(running)\n");
+    ui_out_text (current_uiout, "(running)\n");
   else if (inf->pid != 0)
     {
-      ui_out_text (uiout, "\n");
+      ui_out_text (current_uiout, "\n");
       print_stack_frame (get_selected_frame (NULL), 1, SRC_AND_LOC);
     }
 }
@@ -744,7 +746,7 @@ inferior_command (char *args, int from_tty)
 static void
 info_inferiors_command (char *args, int from_tty)
 {
-  print_inferior (uiout, args);
+  print_inferior (current_uiout, args);
 }
 
 /* remove-inferior ID */

@@ -1,6 +1,5 @@
 /* GNU/Linux on ARM native support.
-   Copyright (C) 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2007, 2008, 2009,
-   2010, 2011 Free Software Foundation, Inc.
+   Copyright (C) 1999-2002, 2004-2012 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -1034,7 +1033,6 @@ static int
 arm_linux_insert_hw_breakpoint (struct gdbarch *gdbarch, 
 				struct bp_target_info *bp_tgt)
 {
-  ptid_t ptid;
   struct lwp_info *lp;
   struct arm_linux_hw_breakpoint p;
 
@@ -1042,8 +1040,8 @@ arm_linux_insert_hw_breakpoint (struct gdbarch *gdbarch,
     return -1;
 
   arm_linux_hw_breakpoint_initialize (gdbarch, bp_tgt, &p);
-  ALL_LWPS (lp, ptid)
-    arm_linux_insert_hw_breakpoint1 (&p, TIDGET (ptid), 0);
+  ALL_LWPS (lp)
+    arm_linux_insert_hw_breakpoint1 (&p, TIDGET (lp->ptid), 0);
 
   return 0;
 }
@@ -1053,7 +1051,6 @@ static int
 arm_linux_remove_hw_breakpoint (struct gdbarch *gdbarch, 
 				struct bp_target_info *bp_tgt)
 {
-  ptid_t ptid;
   struct lwp_info *lp;
   struct arm_linux_hw_breakpoint p;
 
@@ -1061,8 +1058,8 @@ arm_linux_remove_hw_breakpoint (struct gdbarch *gdbarch,
     return -1;
 
   arm_linux_hw_breakpoint_initialize (gdbarch, bp_tgt, &p);
-  ALL_LWPS (lp, ptid)
-    arm_linux_remove_hw_breakpoint1 (&p, TIDGET (ptid), 0);
+  ALL_LWPS (lp)
+    arm_linux_remove_hw_breakpoint1 (&p, TIDGET (lp->ptid), 0);
 
   return 0;
 }
@@ -1105,7 +1102,6 @@ static int
 arm_linux_insert_watchpoint (CORE_ADDR addr, int len, int rw,
 			     struct expression *cond)
 {
-  ptid_t ptid;
   struct lwp_info *lp;
   struct arm_linux_hw_breakpoint p;
 
@@ -1113,8 +1109,8 @@ arm_linux_insert_watchpoint (CORE_ADDR addr, int len, int rw,
     return -1;
 
   arm_linux_hw_watchpoint_initialize (addr, len, rw, &p);
-  ALL_LWPS (lp, ptid)
-    arm_linux_insert_hw_breakpoint1 (&p, TIDGET (ptid), 1);
+  ALL_LWPS (lp)
+    arm_linux_insert_hw_breakpoint1 (&p, TIDGET (lp->ptid), 1);
 
   return 0;
 }
@@ -1124,7 +1120,6 @@ static int
 arm_linux_remove_watchpoint (CORE_ADDR addr, int len, int rw,
 			     struct expression *cond)
 {
-  ptid_t ptid;
   struct lwp_info *lp;
   struct arm_linux_hw_breakpoint p;
 
@@ -1132,8 +1127,8 @@ arm_linux_remove_watchpoint (CORE_ADDR addr, int len, int rw,
     return -1;
 
   arm_linux_hw_watchpoint_initialize (addr, len, rw, &p);
-  ALL_LWPS (lp, ptid)
-    arm_linux_remove_hw_breakpoint1 (&p, TIDGET (ptid), 1);
+  ALL_LWPS (lp)
+    arm_linux_remove_hw_breakpoint1 (&p, TIDGET (lp->ptid), 1);
 
   return 0;
 }

@@ -1,6 +1,5 @@
 dnl Autoconf configure script for GDB server.
-dnl Copyright (C) 2000, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
-dnl 2010, 2011 Free Software Foundation, Inc.
+dnl Copyright (C) 2000, 2002-2012 Free Software Foundation, Inc.
 dnl
 dnl This file is part of GDB.
 dnl
@@ -35,6 +34,7 @@ AC_PROG_INSTALL
 AC_ARG_PROGRAM
 
 AC_HEADER_STDC
+AC_HEADER_DIRENT
 
 AC_FUNC_ALLOCA
 AC_CHECK_HEADERS(sgtty.h termio.h termios.h sys/reg.h string.h dnl
@@ -168,6 +168,10 @@ AC_CHECK_TYPES(socklen_t, [], [],
 #include <sys/socket.h>
 ])
 
+AC_CHECK_TYPES([Elf32_auxv_t, Elf64_auxv_t], [], [],
+#include <elf.h>
+)
+
 ACX_PKGVERSION([Linaro GDB])
 ACX_BUGURL([http://bugs.launchpad.net/gdb-linaro/])
 AC_DEFINE_UNQUOTED([PKGVERSION], ["$PKGVERSION"], [Additional package description])
@@ -266,6 +270,16 @@ if test "$ac_cv_header_sys_procfs_h" = yes; then
   BFD_HAVE_SYS_PROCFS_TYPE(psaddr_t)
   BFD_HAVE_SYS_PROCFS_TYPE(prgregset_t)
   BFD_HAVE_SYS_PROCFS_TYPE(elf_fpregset_t)
+fi
+
+dnl Some systems (e.g., Android) have lwpid_t defined in libthread_db.h.
+if test "$bfd_cv_have_sys_procfs_type_lwpid_t" != yes; then
+  GDBSERVER_HAVE_THREAD_DB_TYPE(lwpid_t)
+fi
+
+dnl Some systems (e.g., Android) have psaddr_t defined in libthread_db.h.
+if test "$bfd_cv_have_sys_procfs_type_psaddr_t" != yes; then
+  GDBSERVER_HAVE_THREAD_DB_TYPE(psaddr_t)
 fi
 
 dnl Check for libdl, but do not add it to LIBS as only gdbserver

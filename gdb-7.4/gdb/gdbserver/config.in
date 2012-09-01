@@ -42,8 +42,18 @@
    don't. */
 #undef HAVE_DECL_VSNPRINTF
 
+/* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_DIRENT_H
+
 /* Define to 1 if you have the `dladdr' function. */
 #undef HAVE_DLADDR
+
+/* Define to 1 if the system has the type `Elf32_auxv_t'. */
+#undef HAVE_ELF32_AUXV_T
+
+/* Define to 1 if the system has the type `Elf64_auxv_t'. */
+#undef HAVE_ELF64_AUXV_T
 
 /* Define if <sys/procfs.h> has elf_fpregset_t. */
 #undef HAVE_ELF_FPREGSET_T
@@ -72,7 +82,7 @@
 /* Define if the target supports PTRACE_PEEKUSR for register access. */
 #undef HAVE_LINUX_USRREGS
 
-/* Define if <sys/procfs.h> has lwpid_t. */
+/* Define if <thread_db.h> has lwpid_t. */
 #undef HAVE_LWPID_T
 
 /* Define to 1 if you have the <malloc.h> header file. */
@@ -83,6 +93,9 @@
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
+#undef HAVE_NDIR_H
 
 /* Define to 1 if you have the <netdb.h> header file. */
 #undef HAVE_NETDB_H
@@ -108,7 +121,7 @@
 /* Define to 1 if you have the <proc_service.h> header file. */
 #undef HAVE_PROC_SERVICE_H
 
-/* Define if <sys/procfs.h> has psaddr_t. */
+/* Define if <thread_db.h> has psaddr_t. */
 #undef HAVE_PSADDR_T
 
 /* Define if the target supports PTRACE_GETFPXREGS for extended register
@@ -145,11 +158,19 @@
 /* Define to 1 if the target supports __sync_*_compare_and_swap */
 #undef HAVE_SYNC_BUILTINS
 
+/* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_SYS_DIR_H
+
 /* Define to 1 if you have the <sys/file.h> header file. */
 #undef HAVE_SYS_FILE_H
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #undef HAVE_SYS_IOCTL_H
+
+/* Define to 1 if you have the <sys/ndir.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_SYS_NDIR_H
 
 /* Define to 1 if you have the <sys/procfs.h> header file. */
 #undef HAVE_SYS_PROCFS_H

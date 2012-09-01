@@ -1,7 +1,6 @@
 /* GNU/Linux on ARM target support.
 
-   Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
-   2009, 2010, 2011 Free Software Foundation, Inc.
+   Copyright (C) 1999-2012 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -895,8 +894,8 @@ arm_linux_cleanup_svc (struct gdbarch *gdbarch,
 }
 
 static int
-arm_linux_copy_svc (struct gdbarch *gdbarch, uint32_t insn, CORE_ADDR to,
-		    struct regcache *regs, struct displaced_step_closure *dsc)
+arm_linux_copy_svc (struct gdbarch *gdbarch, struct regcache *regs,
+		    struct displaced_step_closure *dsc)
 {
   CORE_ADDR return_to = 0;
 
@@ -904,10 +903,6 @@ arm_linux_copy_svc (struct gdbarch *gdbarch, uint32_t insn, CORE_ADDR to,
   unsigned int svc_number = displaced_read_reg (regs, dsc, 7);
   int is_sigreturn = 0;
   int is_thumb;
-
-  if (debug_displaced)
-    fprintf_unfiltered (gdb_stdlog, "displaced: copying Linux svc insn %.8lx\n",
-			(unsigned long) insn);
 
   frame = get_current_frame ();
 
@@ -962,7 +957,6 @@ arm_linux_copy_svc (struct gdbarch *gdbarch, uint32_t insn, CORE_ADDR to,
      Cleanup: if pc lands in scratch space, pc <- insn_addr + 4
               else leave pc alone.  */
 
-  dsc->modinsn[0] = insn;
 
   dsc->cleanup = &arm_linux_cleanup_svc;
   /* Pretend we wrote to the PC, so cleanup doesn't set PC to the next

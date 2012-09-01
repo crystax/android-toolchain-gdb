@@ -1,6 +1,5 @@
 /* GNU/Linux/ARM specific low level interface, for the remote server for GDB.
-   Copyright (C) 1995, 1996, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-   2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
+   Copyright (C) 1995-1996, 1998-2012 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -710,13 +709,15 @@ arm_prepare_to_resume (struct lwp_info *lwp)
 	errno = 0;
 
 	if (arm_hwbp_control_is_enabled (proc_info->bpts[i].control))
-	  if (ptrace (PTRACE_SETHBPREGS, pid, ((i << 1) + 1),
-	      &proc_info->bpts[i].address) < 0)
+	  if (ptrace (PTRACE_SETHBPREGS, pid,
+		      (PTRACE_ARG3_TYPE) ((i << 1) + 1),
+		      &proc_info->bpts[i].address) < 0)
 	    perror_with_name ("Unexpected error setting breakpoint address");
 
 	if (arm_hwbp_control_is_initialized (proc_info->bpts[i].control))
-	  if (ptrace (PTRACE_SETHBPREGS, pid, ((i << 1) + 2),
-	      &proc_info->bpts[i].control) < 0)
+	  if (ptrace (PTRACE_SETHBPREGS, pid,
+		      (PTRACE_ARG3_TYPE) ((i << 1) + 2),
+		      &proc_info->bpts[i].control) < 0)
 	    perror_with_name ("Unexpected error setting breakpoint");
 
 	lwp_info->bpts_changed[i] = 0;
@@ -728,13 +729,15 @@ arm_prepare_to_resume (struct lwp_info *lwp)
 	errno = 0;
 
 	if (arm_hwbp_control_is_enabled (proc_info->wpts[i].control))
-	  if (ptrace (PTRACE_SETHBPREGS, pid, -((i << 1) + 1),
-	      &proc_info->wpts[i].address) < 0)
+	  if (ptrace (PTRACE_SETHBPREGS, pid,
+		      (PTRACE_ARG3_TYPE) -((i << 1) + 1),
+		      &proc_info->wpts[i].address) < 0)
 	    perror_with_name ("Unexpected error setting watchpoint address");
 
 	if (arm_hwbp_control_is_initialized (proc_info->wpts[i].control))
-	  if (ptrace (PTRACE_SETHBPREGS, pid, -((i << 1) + 2),
-	      &proc_info->wpts[i].control) < 0)
+	  if (ptrace (PTRACE_SETHBPREGS, pid,
+		      (PTRACE_ARG3_TYPE) -((i << 1) + 2),
+		      &proc_info->wpts[i].control) < 0)
 	    perror_with_name ("Unexpected error setting watchpoint");
 
 	lwp_info->wpts_changed[i] = 0;

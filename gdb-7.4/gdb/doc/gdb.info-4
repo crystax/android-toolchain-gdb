@@ -23,7 +23,7 @@ developing GNU and promoting software freedom."
    This file documents the GNU debugger GDB.
 
    This is the Tenth Edition, of `Debugging with GDB: the GNU
-Source-Level Debugger' for GDB (Linaro GDB) Version 7.3-2011.12.
+Source-Level Debugger' for GDB (Linaro GDB) Version 7.4-2012.06.
 
    Copyright (C) 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996,
 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
@@ -41,9 +41,1609 @@ this GNU Manual.  Buying copies from GNU Press supports the FSF in
 developing GNU and promoting software freedom."
 
 
-File: gdb.info,  Node: GDB/MI Program Execution,  Next: GDB/MI Stack Manipulation,  Prev: GDB/MI Thread Commands,  Up: GDB/MI
+File: gdb.info,  Node: GDB/MI Output Syntax,  Prev: GDB/MI Input Syntax,  Up: GDB/MI Command Syntax
 
-27.11 GDB/MI Program Execution
+27.2.2 GDB/MI Output Syntax
+---------------------------
+
+The output from GDB/MI consists of zero or more out-of-band records
+followed, optionally, by a single result record.  This result record is
+for the most recent command.  The sequence of output records is
+terminated by `(gdb)'.
+
+   If an input command was prefixed with a `TOKEN' then the
+corresponding output for that command will also be prefixed by that same
+TOKEN.
+
+`OUTPUT ==>'
+     `( OUT-OF-BAND-RECORD )* [ RESULT-RECORD ] "(gdb)" NL'
+
+`RESULT-RECORD ==>'
+     ` [ TOKEN ] "^" RESULT-CLASS ( "," RESULT )* NL'
+
+`OUT-OF-BAND-RECORD ==>'
+     `ASYNC-RECORD | STREAM-RECORD'
+
+`ASYNC-RECORD ==>'
+     `EXEC-ASYNC-OUTPUT | STATUS-ASYNC-OUTPUT | NOTIFY-ASYNC-OUTPUT'
+
+`EXEC-ASYNC-OUTPUT ==>'
+     `[ TOKEN ] "*" ASYNC-OUTPUT'
+
+`STATUS-ASYNC-OUTPUT ==>'
+     `[ TOKEN ] "+" ASYNC-OUTPUT'
+
+`NOTIFY-ASYNC-OUTPUT ==>'
+     `[ TOKEN ] "=" ASYNC-OUTPUT'
+
+`ASYNC-OUTPUT ==>'
+     `ASYNC-CLASS ( "," RESULT )* NL'
+
+`RESULT-CLASS ==>'
+     `"done" | "running" | "connected" | "error" | "exit"'
+
+`ASYNC-CLASS ==>'
+     `"stopped" | OTHERS' (where OTHERS will be added depending on the
+     needs--this is still in development).
+
+`RESULT ==>'
+     ` VARIABLE "=" VALUE'
+
+`VARIABLE ==>'
+     ` STRING '
+
+`VALUE ==>'
+     ` CONST | TUPLE | LIST '
+
+`CONST ==>'
+     `C-STRING'
+
+`TUPLE ==>'
+     ` "{}" | "{" RESULT ( "," RESULT )* "}" '
+
+`LIST ==>'
+     ` "[]" | "[" VALUE ( "," VALUE )* "]" | "[" RESULT ( "," RESULT )*
+     "]" '
+
+`STREAM-RECORD ==>'
+     `CONSOLE-STREAM-OUTPUT | TARGET-STREAM-OUTPUT | LOG-STREAM-OUTPUT'
+
+`CONSOLE-STREAM-OUTPUT ==>'
+     `"~" C-STRING'
+
+`TARGET-STREAM-OUTPUT ==>'
+     `"@" C-STRING'
+
+`LOG-STREAM-OUTPUT ==>'
+     `"&" C-STRING'
+
+`NL ==>'
+     `CR | CR-LF'
+
+`TOKEN ==>'
+     _any sequence of digits_.
+
+Notes:
+
+   * All output sequences end in a single line containing a period.
+
+   * The `TOKEN' is from the corresponding request.  Note that for all
+     async output, while the token is allowed by the grammar and may be
+     output by future versions of GDB for select async output messages,
+     it is generally omitted.  Frontends should treat all async output
+     as reporting general changes in the state of the target and there
+     should be no need to associate async output to any prior command.
+
+   * STATUS-ASYNC-OUTPUT contains on-going status information about the
+     progress of a slow operation.  It can be discarded.  All status
+     output is prefixed by `+'.
+
+   * EXEC-ASYNC-OUTPUT contains asynchronous state change on the target
+     (stopped, started, disappeared).  All async output is prefixed by
+     `*'.
+
+   * NOTIFY-ASYNC-OUTPUT contains supplementary information that the
+     client should handle (e.g., a new breakpoint information).  All
+     notify output is prefixed by `='.
+
+   * CONSOLE-STREAM-OUTPUT is output that should be displayed as is in
+     the console.  It is the textual response to a CLI command.  All
+     the console output is prefixed by `~'.
+
+   * TARGET-STREAM-OUTPUT is the output produced by the target program.
+     All the target output is prefixed by `@'.
+
+   * LOG-STREAM-OUTPUT is output text coming from GDB's internals, for
+     instance messages that should be displayed as part of an error
+     log.  All the log output is prefixed by `&'.
+
+   * New GDB/MI commands should only output LISTS containing VALUES.
+
+
+   *Note GDB/MI Stream Records: GDB/MI Stream Records, for more details
+about the various output records.
+
+
+File: gdb.info,  Node: GDB/MI Compatibility with CLI,  Next: GDB/MI Development and Front Ends,  Prev: GDB/MI Command Syntax,  Up: GDB/MI
+
+27.3 GDB/MI Compatibility with CLI
+==================================
+
+For the developers convenience CLI commands can be entered directly,
+but there may be some unexpected behaviour.  For example, commands that
+query the user will behave as if the user replied yes, breakpoint
+command lists are not executed and some CLI commands, such as `if',
+`when' and `define', prompt for further input with `>', which is not
+valid MI output.
+
+   This feature may be removed at some stage in the future and it is
+recommended that front ends use the `-interpreter-exec' command (*note
+-interpreter-exec::).
+
+
+File: gdb.info,  Node: GDB/MI Development and Front Ends,  Next: GDB/MI Output Records,  Prev: GDB/MI Compatibility with CLI,  Up: GDB/MI
+
+27.4 GDB/MI Development and Front Ends
+======================================
+
+The application which takes the MI output and presents the state of the
+program being debugged to the user is called a "front end".
+
+   Although GDB/MI is still incomplete, it is currently being used by a
+variety of front ends to GDB.  This makes it difficult to introduce new
+functionality without breaking existing usage.  This section tries to
+minimize the problems by describing how the protocol might change.
+
+   Some changes in MI need not break a carefully designed front end, and
+for these the MI version will remain unchanged.  The following is a
+list of changes that may occur within one level, so front ends should
+parse MI output in a way that can handle them:
+
+   * New MI commands may be added.
+
+   * New fields may be added to the output of any MI command.
+
+   * The range of values for fields with specified values, e.g.,
+     `in_scope' (*note -var-update::) may be extended.
+
+
+   If the changes are likely to break front ends, the MI version level
+will be increased by one.  This will allow the front end to parse the
+output according to the MI version.  Apart from mi0, new versions of
+GDB will not support old versions of MI and it will be the
+responsibility of the front end to work with the new one.
+
+   The best way to avoid unexpected changes in MI that might break your
+front end is to make your project known to GDB developers and follow
+development on <gdb@sourceware.org> and <gdb-patches@sourceware.org>.  
+
+
+File: gdb.info,  Node: GDB/MI Output Records,  Next: GDB/MI Simple Examples,  Prev: GDB/MI Development and Front Ends,  Up: GDB/MI
+
+27.5 GDB/MI Output Records
+==========================
+
+* Menu:
+
+* GDB/MI Result Records::
+* GDB/MI Stream Records::
+* GDB/MI Async Records::
+* GDB/MI Frame Information::
+* GDB/MI Thread Information::
+* GDB/MI Ada Exception Information::
+
+
+File: gdb.info,  Node: GDB/MI Result Records,  Next: GDB/MI Stream Records,  Up: GDB/MI Output Records
+
+27.5.1 GDB/MI Result Records
+----------------------------
+
+In addition to a number of out-of-band notifications, the response to a
+GDB/MI command includes one of the following result indications:
+
+`"^done" [ "," RESULTS ]'
+     The synchronous operation was successful, `RESULTS' are the return
+     values.
+
+`"^running"'
+     This result record is equivalent to `^done'.  Historically, it was
+     output instead of `^done' if the command has resumed the target.
+     This behaviour is maintained for backward compatibility, but all
+     frontends should treat `^done' and `^running' identically and rely
+     on the `*running' output record to determine which threads are
+     resumed.
+
+`"^connected"'
+     GDB has connected to a remote target.
+
+`"^error" "," C-STRING'
+     The operation failed.  The `C-STRING' contains the corresponding
+     error message.
+
+`"^exit"'
+     GDB has terminated.
+
+
+
+File: gdb.info,  Node: GDB/MI Stream Records,  Next: GDB/MI Async Records,  Prev: GDB/MI Result Records,  Up: GDB/MI Output Records
+
+27.5.2 GDB/MI Stream Records
+----------------------------
+
+GDB internally maintains a number of output streams: the console, the
+target, and the log.  The output intended for each of these streams is
+funneled through the GDB/MI interface using "stream records".
+
+   Each stream record begins with a unique "prefix character" which
+identifies its stream (*note GDB/MI Output Syntax: GDB/MI Output
+Syntax.).  In addition to the prefix, each stream record contains a
+`STRING-OUTPUT'.  This is either raw text (with an implicit new line)
+or a quoted C string (which does not contain an implicit newline).
+
+`"~" STRING-OUTPUT'
+     The console output stream contains text that should be displayed
+     in the CLI console window.  It contains the textual responses to
+     CLI commands.
+
+`"@" STRING-OUTPUT'
+     The target output stream contains any textual output from the
+     running target.  This is only present when GDB's event loop is
+     truly asynchronous, which is currently only the case for remote
+     targets.
+
+`"&" STRING-OUTPUT'
+     The log stream contains debugging messages being produced by GDB's
+     internals.
+
+
+File: gdb.info,  Node: GDB/MI Async Records,  Next: GDB/MI Frame Information,  Prev: GDB/MI Stream Records,  Up: GDB/MI Output Records
+
+27.5.3 GDB/MI Async Records
+---------------------------
+
+"Async" records are used to notify the GDB/MI client of additional
+changes that have occurred.  Those changes can either be a consequence
+of GDB/MI commands (e.g., a breakpoint modified) or a result of target
+activity (e.g., target stopped).
+
+   The following is the list of possible async records:
+
+`*running,thread-id="THREAD"'
+     The target is now running.  The THREAD field tells which specific
+     thread is now running, and can be `all' if all threads are
+     running.  The frontend should assume that no interaction with a
+     running thread is possible after this notification is produced.
+     The frontend should not assume that this notification is output
+     only once for any command.  GDB may emit this notification several
+     times, either for different threads, because it cannot resume all
+     threads together, or even for a single thread, if the thread must
+     be stepped though some code before letting it run freely.
+
+`*stopped,reason="REASON",thread-id="ID",stopped-threads="STOPPED",core="CORE"'
+     The target has stopped.  The REASON field can have one of the
+     following values:
+
+    `breakpoint-hit'
+          A breakpoint was reached.
+
+    `watchpoint-trigger'
+          A watchpoint was triggered.
+
+    `read-watchpoint-trigger'
+          A read watchpoint was triggered.
+
+    `access-watchpoint-trigger'
+          An access watchpoint was triggered.
+
+    `function-finished'
+          An -exec-finish or similar CLI command was accomplished.
+
+    `location-reached'
+          An -exec-until or similar CLI command was accomplished.
+
+    `watchpoint-scope'
+          A watchpoint has gone out of scope.
+
+    `end-stepping-range'
+          An -exec-next, -exec-next-instruction, -exec-step,
+          -exec-step-instruction or similar CLI command was
+          accomplished.
+
+    `exited-signalled'
+          The inferior exited because of a signal.
+
+    `exited'
+          The inferior exited.
+
+    `exited-normally'
+          The inferior exited normally.
+
+    `signal-received'
+          A signal was received by the inferior.
+
+    `solib-event'
+          The inferior has stopped due to a library being loaded or
+          unloaded.  This can only happen when `stop-on-solib-events'
+          (*note Files::) is set.
+
+    `fork'
+          The inferior has forked.  This is reported when `catch fork'
+          (*note Set Catchpoints::) has been used.
+
+    `vfork'
+          The inferior has vforked.  This is reported in when `catch
+          vfork' (*note Set Catchpoints::) has been used.
+
+    `syscall-entry'
+          The inferior entered a system call.  This is reported when
+          `catch syscall' (*note Set Catchpoints::) has been used.
+
+    `syscall-entry'
+          The inferior returned from a system call.  This is reported
+          when `catch syscall' (*note Set Catchpoints::) has been used.
+
+    `exec'
+          The inferior called `exec'.  This is reported when `catch
+          exec' (*note Set Catchpoints::) has been used.
+
+     The ID field identifies the thread that directly caused the stop -
+     for example by hitting a breakpoint.  Depending on whether all-stop
+     mode is in effect (*note All-Stop Mode::), GDB may either stop all
+     threads, or only the thread that directly triggered the stop.  If
+     all threads are stopped, the STOPPED field will have the value of
+     `"all"'.  Otherwise, the value of the STOPPED field will be a list
+     of thread identifiers.  Presently, this list will always include a
+     single thread, but frontend should be prepared to see several
+     threads in the list.  The CORE field reports the processor core on
+     which the stop event has happened.  This field may be absent if
+     such information is not available.
+
+`=thread-group-added,id="ID"'
+`=thread-group-removed,id="ID"'
+     A thread group was either added or removed.  The ID field contains
+     the GDB identifier of the thread group.  When a thread group is
+     added, it generally might not be associated with a running
+     process.  When a thread group is removed, its id becomes invalid
+     and cannot be used in any way.
+
+`=thread-group-started,id="ID",pid="PID"'
+     A thread group became associated with a running program, either
+     because the program was just started or the thread group was
+     attached to a program.  The ID field contains the GDB identifier
+     of the thread group.  The PID field contains process identifier,
+     specific to the operating system.
+
+`=thread-group-exited,id="ID"[,exit-code="CODE"]'
+     A thread group is no longer associated with a running program,
+     either because the program has exited, or because it was detached
+     from.  The ID field contains the GDB identifier of the thread
+     group.  CODE is the exit code of the inferior; it exists only when
+     the inferior exited with some code.
+
+`=thread-created,id="ID",group-id="GID"'
+`=thread-exited,id="ID",group-id="GID"'
+     A thread either was created, or has exited.  The ID field contains
+     the GDB identifier of the thread.  The GID field identifies the
+     thread group this thread belongs to.
+
+`=thread-selected,id="ID"'
+     Informs that the selected thread was changed as result of the last
+     command.  This notification is not emitted as result of
+     `-thread-select' command but is emitted whenever an MI command
+     that is not documented to change the selected thread actually
+     changes it.  In particular, invoking, directly or indirectly (via
+     user-defined command), the CLI `thread' command, will generate
+     this notification.
+
+     We suggest that in response to this notification, front ends
+     highlight the selected thread and cause subsequent commands to
+     apply to that thread.
+
+`=library-loaded,...'
+     Reports that a new library file was loaded by the program.  This
+     notification has 4 fields--ID, TARGET-NAME, HOST-NAME, and
+     SYMBOLS-LOADED.  The ID field is an opaque identifier of the
+     library.  For remote debugging case, TARGET-NAME and HOST-NAME
+     fields give the name of the library file on the target, and on the
+     host respectively.  For native debugging, both those fields have
+     the same value.  The SYMBOLS-LOADED field is emitted only for
+     backward compatibility and should not be relied on to convey any
+     useful information.  The THREAD-GROUP field, if present, specifies
+     the id of the thread group in whose context the library was
+     loaded.  If the field is absent, it means the library was loaded
+     in the context of all present thread groups.
+
+`=library-unloaded,...'
+     Reports that a library was unloaded by the program.  This
+     notification has 3 fields--ID, TARGET-NAME and HOST-NAME with the
+     same meaning as for the `=library-loaded' notification.  The
+     THREAD-GROUP field, if present, specifies the id of the thread
+     group in whose context the library was unloaded.  If the field is
+     absent, it means the library was unloaded in the context of all
+     present thread groups.
+
+`=breakpoint-created,bkpt={...}'
+`=breakpoint-modified,bkpt={...}'
+`=breakpoint-deleted,bkpt={...}'
+     Reports that a breakpoint was created, modified, or deleted,
+     respectively.  Only user-visible breakpoints are reported to the MI
+     user.
+
+     The BKPT argument is of the same form as returned by the various
+     breakpoint commands; *Note GDB/MI Breakpoint Commands::.
+
+     Note that if a breakpoint is emitted in the result record of a
+     command, then it will not also be emitted in an async record.
+
+
+
+File: gdb.info,  Node: GDB/MI Frame Information,  Next: GDB/MI Thread Information,  Prev: GDB/MI Async Records,  Up: GDB/MI Output Records
+
+27.5.4 GDB/MI Frame Information
+-------------------------------
+
+Response from many MI commands includes an information about stack
+frame.  This information is a tuple that may have the following fields:
+
+`level'
+     The level of the stack frame.  The innermost frame has the level of
+     zero.  This field is always present.
+
+`func'
+     The name of the function corresponding to the frame.  This field
+     may be absent if GDB is unable to determine the function name.
+
+`addr'
+     The code address for the frame.  This field is always present.
+
+`file'
+     The name of the source files that correspond to the frame's code
+     address.  This field may be absent.
+
+`line'
+     The source line corresponding to the frames' code address.  This
+     field may be absent.
+
+`from'
+     The name of the binary file (either executable or shared library)
+     the corresponds to the frame's code address.  This field may be
+     absent.
+
+
+
+File: gdb.info,  Node: GDB/MI Thread Information,  Next: GDB/MI Ada Exception Information,  Prev: GDB/MI Frame Information,  Up: GDB/MI Output Records
+
+27.5.5 GDB/MI Thread Information
+--------------------------------
+
+Whenever GDB has to report an information about a thread, it uses a
+tuple with the following fields:
+
+`id'
+     The numeric id assigned to the thread by GDB.  This field is
+     always present.
+
+`target-id'
+     Target-specific string identifying the thread.  This field is
+     always present.
+
+`details'
+     Additional information about the thread provided by the target.
+     It is supposed to be human-readable and not interpreted by the
+     frontend.  This field is optional.
+
+`state'
+     Either `stopped' or `running', depending on whether the thread is
+     presently running.  This field is always present.
+
+`core'
+     The value of this field is an integer number of the processor core
+     the thread was last seen on.  This field is optional.
+
+
+File: gdb.info,  Node: GDB/MI Ada Exception Information,  Prev: GDB/MI Thread Information,  Up: GDB/MI Output Records
+
+27.5.6 GDB/MI Ada Exception Information
+---------------------------------------
+
+Whenever a `*stopped' record is emitted because the program stopped
+after hitting an exception catchpoint (*note Set Catchpoints::), GDB
+provides the name of the exception that was raised via the
+`exception-name' field.
+
+
+File: gdb.info,  Node: GDB/MI Simple Examples,  Next: GDB/MI Command Description Format,  Prev: GDB/MI Output Records,  Up: GDB/MI
+
+27.6 Simple Examples of GDB/MI Interaction
+==========================================
+
+This subsection presents several simple examples of interaction using
+the GDB/MI interface.  In these examples, `->' means that the following
+line is passed to GDB/MI as input, while `<-' means the output received
+from GDB/MI.
+
+   Note the line breaks shown in the examples are here only for
+readability, they don't appear in the real output.
+
+Setting a Breakpoint
+--------------------
+
+Setting a breakpoint generates synchronous output which contains
+detailed information of the breakpoint.
+
+     -> -break-insert main
+     <- ^done,bkpt={number="1",type="breakpoint",disp="keep",
+         enabled="y",addr="0x08048564",func="main",file="myprog.c",
+         fullname="/home/nickrob/myprog.c",line="68",times="0"}
+     <- (gdb)
+
+Program Execution
+-----------------
+
+Program execution generates asynchronous records and MI gives the
+reason that execution stopped.
+
+     -> -exec-run
+     <- ^running
+     <- (gdb)
+     <- *stopped,reason="breakpoint-hit",disp="keep",bkptno="1",thread-id="0",
+        frame={addr="0x08048564",func="main",
+        args=[{name="argc",value="1"},{name="argv",value="0xbfc4d4d4"}],
+        file="myprog.c",fullname="/home/nickrob/myprog.c",line="68"}
+     <- (gdb)
+     -> -exec-continue
+     <- ^running
+     <- (gdb)
+     <- *stopped,reason="exited-normally"
+     <- (gdb)
+
+Quitting GDB
+------------
+
+Quitting GDB just prints the result class `^exit'.
+
+     -> (gdb)
+     <- -gdb-exit
+     <- ^exit
+
+   Please note that `^exit' is printed immediately, but it might take
+some time for GDB to actually exit.  During that time, GDB performs
+necessary cleanups, including killing programs being debugged or
+disconnecting from debug hardware, so the frontend should wait till GDB
+exits and should only forcibly kill GDB if it fails to exit in
+reasonable time.
+
+A Bad Command
+-------------
+
+Here's what happens if you pass a non-existent command:
+
+     -> -rubbish
+     <- ^error,msg="Undefined MI command: rubbish"
+     <- (gdb)
+
+
+File: gdb.info,  Node: GDB/MI Command Description Format,  Next: GDB/MI Breakpoint Commands,  Prev: GDB/MI Simple Examples,  Up: GDB/MI
+
+27.7 GDB/MI Command Description Format
+======================================
+
+The remaining sections describe blocks of commands.  Each block of
+commands is laid out in a fashion similar to this section.
+
+Motivation
+----------
+
+The motivation for this collection of commands.
+
+Introduction
+------------
+
+A brief introduction to this collection of commands as a whole.
+
+Commands
+--------
+
+For each command in the block, the following is described:
+
+Synopsis
+........
+
+      -command ARGS...
+
+Result
+......
+
+GDB Command
+...........
+
+The corresponding GDB CLI command(s), if any.
+
+Example
+.......
+
+Example(s) formatted for readability.  Some of the described commands
+have not been implemented yet and these are labeled N.A. (not
+available).
+
+
+File: gdb.info,  Node: GDB/MI Breakpoint Commands,  Next: GDB/MI Program Context,  Prev: GDB/MI Command Description Format,  Up: GDB/MI
+
+27.8 GDB/MI Breakpoint Commands
+===============================
+
+This section documents GDB/MI commands for manipulating breakpoints.
+
+The `-break-after' Command
+--------------------------
+
+Synopsis
+........
+
+      -break-after NUMBER COUNT
+
+   The breakpoint number NUMBER is not in effect until it has been hit
+COUNT times.  To see how this is reflected in the output of the
+`-break-list' command, see the description of the `-break-list' command
+below.
+
+GDB Command
+...........
+
+The corresponding GDB command is `ignore'.
+
+Example
+.......
+
+     (gdb)
+     -break-insert main
+     ^done,bkpt={number="1",type="breakpoint",disp="keep",
+     enabled="y",addr="0x000100d0",func="main",file="hello.c",
+     fullname="/home/foo/hello.c",line="5",times="0"}
+     (gdb)
+     -break-after 1 3
+     ~
+     ^done
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="1",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="1",type="breakpoint",disp="keep",enabled="y",
+     addr="0x000100d0",func="main",file="hello.c",fullname="/home/foo/hello.c",
+     line="5",times="0",ignore="3"}]}
+     (gdb)
+
+The `-break-commands' Command
+-----------------------------
+
+Synopsis
+........
+
+      -break-commands NUMBER [ COMMAND1 ... COMMANDN ]
+
+   Specifies the CLI commands that should be executed when breakpoint
+NUMBER is hit.  The parameters COMMAND1 to COMMANDN are the commands.
+If no command is specified, any previously-set commands are cleared.
+*Note Break Commands::.  Typical use of this functionality is tracing a
+program, that is, printing of values of some variables whenever
+breakpoint is hit and then continuing.
+
+GDB Command
+...........
+
+The corresponding GDB command is `commands'.
+
+Example
+.......
+
+     (gdb)
+     -break-insert main
+     ^done,bkpt={number="1",type="breakpoint",disp="keep",
+     enabled="y",addr="0x000100d0",func="main",file="hello.c",
+     fullname="/home/foo/hello.c",line="5",times="0"}
+     (gdb)
+     -break-commands 1 "print v" "continue"
+     ^done
+     (gdb)
+
+The `-break-condition' Command
+------------------------------
+
+Synopsis
+........
+
+      -break-condition NUMBER EXPR
+
+   Breakpoint NUMBER will stop the program only if the condition in
+EXPR is true.  The condition becomes part of the `-break-list' output
+(see the description of the `-break-list' command below).
+
+GDB Command
+...........
+
+The corresponding GDB command is `condition'.
+
+Example
+.......
+
+     (gdb)
+     -break-condition 1 1
+     ^done
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="1",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="1",type="breakpoint",disp="keep",enabled="y",
+     addr="0x000100d0",func="main",file="hello.c",fullname="/home/foo/hello.c",
+     line="5",cond="1",times="0",ignore="3"}]}
+     (gdb)
+
+The `-break-delete' Command
+---------------------------
+
+Synopsis
+........
+
+      -break-delete ( BREAKPOINT )+
+
+   Delete the breakpoint(s) whose number(s) are specified in the
+argument list.  This is obviously reflected in the breakpoint list.
+
+GDB Command
+...........
+
+The corresponding GDB command is `delete'.
+
+Example
+.......
+
+     (gdb)
+     -break-delete 1
+     ^done
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="0",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[]}
+     (gdb)
+
+The `-break-disable' Command
+----------------------------
+
+Synopsis
+........
+
+      -break-disable ( BREAKPOINT )+
+
+   Disable the named BREAKPOINT(s).  The field `enabled' in the break
+list is now set to `n' for the named BREAKPOINT(s).
+
+GDB Command
+...........
+
+The corresponding GDB command is `disable'.
+
+Example
+.......
+
+     (gdb)
+     -break-disable 2
+     ^done
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="1",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="2",type="breakpoint",disp="keep",enabled="n",
+     addr="0x000100d0",func="main",file="hello.c",fullname="/home/foo/hello.c",
+     line="5",times="0"}]}
+     (gdb)
+
+The `-break-enable' Command
+---------------------------
+
+Synopsis
+........
+
+      -break-enable ( BREAKPOINT )+
+
+   Enable (previously disabled) BREAKPOINT(s).
+
+GDB Command
+...........
+
+The corresponding GDB command is `enable'.
+
+Example
+.......
+
+     (gdb)
+     -break-enable 2
+     ^done
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="1",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="2",type="breakpoint",disp="keep",enabled="y",
+     addr="0x000100d0",func="main",file="hello.c",fullname="/home/foo/hello.c",
+     line="5",times="0"}]}
+     (gdb)
+
+The `-break-info' Command
+-------------------------
+
+Synopsis
+........
+
+      -break-info BREAKPOINT
+
+   Get information about a single breakpoint.
+
+GDB Command
+...........
+
+The corresponding GDB command is `info break BREAKPOINT'.
+
+Example
+.......
+
+N.A.
+
+The `-break-insert' Command
+---------------------------
+
+Synopsis
+........
+
+      -break-insert [ -t ] [ -h ] [ -f ] [ -d ] [ -a ]
+         [ -c CONDITION ] [ -i IGNORE-COUNT ]
+         [ -p THREAD ] [ LOCATION ]
+
+If specified, LOCATION, can be one of:
+
+   * function
+
+   * filename:linenum
+
+   * filename:function
+
+   * *address
+
+   The possible optional parameters of this command are:
+
+`-t'
+     Insert a temporary breakpoint.
+
+`-h'
+     Insert a hardware breakpoint.
+
+`-c CONDITION'
+     Make the breakpoint conditional on CONDITION.
+
+`-i IGNORE-COUNT'
+     Initialize the IGNORE-COUNT.
+
+`-f'
+     If LOCATION cannot be parsed (for example if it refers to unknown
+     files or functions), create a pending breakpoint. Without this
+     flag, GDB will report an error, and won't create a breakpoint, if
+     LOCATION cannot be parsed.
+
+`-d'
+     Create a disabled breakpoint.
+
+`-a'
+     Create a tracepoint.  *Note Tracepoints::.  When this parameter is
+     used together with `-h', a fast tracepoint is created.
+
+Result
+......
+
+The result is in the form:
+
+     ^done,bkpt={number="NUMBER",type="TYPE",disp="del"|"keep",
+     enabled="y"|"n",addr="HEX",func="FUNCNAME",file="FILENAME",
+     fullname="FULL_FILENAME",line="LINENO",[thread="THREADNO,]
+     times="TIMES"}
+
+where NUMBER is the GDB number for this breakpoint, FUNCNAME is the
+name of the function where the breakpoint was inserted, FILENAME is the
+name of the source file which contains this function, LINENO is the
+source line number within that file and TIMES the number of times that
+the breakpoint has been hit (always 0 for -break-insert but may be
+greater for -break-info or -break-list which use the same output).
+
+   Note: this format is open to change.
+
+GDB Command
+...........
+
+The corresponding GDB commands are `break', `tbreak', `hbreak',
+`thbreak', and `rbreak'.
+
+Example
+.......
+
+     (gdb)
+     -break-insert main
+     ^done,bkpt={number="1",addr="0x0001072c",file="recursive2.c",
+     fullname="/home/foo/recursive2.c,line="4",times="0"}
+     (gdb)
+     -break-insert -t foo
+     ^done,bkpt={number="2",addr="0x00010774",file="recursive2.c",
+     fullname="/home/foo/recursive2.c,line="11",times="0"}
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="2",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="1",type="breakpoint",disp="keep",enabled="y",
+     addr="0x0001072c", func="main",file="recursive2.c",
+     fullname="/home/foo/recursive2.c,"line="4",times="0"},
+     bkpt={number="2",type="breakpoint",disp="del",enabled="y",
+     addr="0x00010774",func="foo",file="recursive2.c",
+     fullname="/home/foo/recursive2.c",line="11",times="0"}]}
+     (gdb)
+     -break-insert -r foo.*
+     ~int foo(int, int);
+     ^done,bkpt={number="3",addr="0x00010774",file="recursive2.c,
+     "fullname="/home/foo/recursive2.c",line="11",times="0"}
+     (gdb)
+
+The `-break-list' Command
+-------------------------
+
+Synopsis
+........
+
+      -break-list
+
+   Displays the list of inserted breakpoints, showing the following
+fields:
+
+`Number'
+     number of the breakpoint
+
+`Type'
+     type of the breakpoint: `breakpoint' or `watchpoint'
+
+`Disposition'
+     should the breakpoint be deleted or disabled when it is hit: `keep'
+     or `nokeep'
+
+`Enabled'
+     is the breakpoint enabled or no: `y' or `n'
+
+`Address'
+     memory location at which the breakpoint is set
+
+`What'
+     logical location of the breakpoint, expressed by function name,
+     file name, line number
+
+`Times'
+     number of times the breakpoint has been hit
+
+   If there are no breakpoints or watchpoints, the `BreakpointTable'
+`body' field is an empty list.
+
+GDB Command
+...........
+
+The corresponding GDB command is `info break'.
+
+Example
+.......
+
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="2",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="1",type="breakpoint",disp="keep",enabled="y",
+     addr="0x000100d0",func="main",file="hello.c",line="5",times="0"},
+     bkpt={number="2",type="breakpoint",disp="keep",enabled="y",
+     addr="0x00010114",func="foo",file="hello.c",fullname="/home/foo/hello.c",
+     line="13",times="0"}]}
+     (gdb)
+
+   Here's an example of the result when there are no breakpoints:
+
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="0",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[]}
+     (gdb)
+
+The `-break-passcount' Command
+------------------------------
+
+Synopsis
+........
+
+      -break-passcount TRACEPOINT-NUMBER PASSCOUNT
+
+   Set the passcount for tracepoint TRACEPOINT-NUMBER to PASSCOUNT.  If
+the breakpoint referred to by TRACEPOINT-NUMBER is not a tracepoint,
+error is emitted.  This corresponds to CLI command `passcount'.
+
+The `-break-watch' Command
+--------------------------
+
+Synopsis
+........
+
+      -break-watch [ -a | -r ]
+
+   Create a watchpoint.  With the `-a' option it will create an
+"access" watchpoint, i.e., a watchpoint that triggers either on a read
+from or on a write to the memory location.  With the `-r' option, the
+watchpoint created is a "read" watchpoint, i.e., it will trigger only
+when the memory location is accessed for reading.  Without either of
+the options, the watchpoint created is a regular watchpoint, i.e., it
+will trigger when the memory location is accessed for writing.  *Note
+Setting Watchpoints: Set Watchpoints.
+
+   Note that `-break-list' will report a single list of watchpoints and
+breakpoints inserted.
+
+GDB Command
+...........
+
+The corresponding GDB commands are `watch', `awatch', and `rwatch'.
+
+Example
+.......
+
+Setting a watchpoint on a variable in the `main' function:
+
+     (gdb)
+     -break-watch x
+     ^done,wpt={number="2",exp="x"}
+     (gdb)
+     -exec-continue
+     ^running
+     (gdb)
+     *stopped,reason="watchpoint-trigger",wpt={number="2",exp="x"},
+     value={old="-268439212",new="55"},
+     frame={func="main",args=[],file="recursive2.c",
+     fullname="/home/foo/bar/recursive2.c",line="5"}
+     (gdb)
+
+   Setting a watchpoint on a variable local to a function.  GDB will
+stop the program execution twice: first for the variable changing
+value, then for the watchpoint going out of scope.
+
+     (gdb)
+     -break-watch C
+     ^done,wpt={number="5",exp="C"}
+     (gdb)
+     -exec-continue
+     ^running
+     (gdb)
+     *stopped,reason="watchpoint-trigger",
+     wpt={number="5",exp="C"},value={old="-276895068",new="3"},
+     frame={func="callee4",args=[],
+     file="../../../devo/gdb/testsuite/gdb.mi/basics.c",
+     fullname="/home/foo/bar/devo/gdb/testsuite/gdb.mi/basics.c",line="13"}
+     (gdb)
+     -exec-continue
+     ^running
+     (gdb)
+     *stopped,reason="watchpoint-scope",wpnum="5",
+     frame={func="callee3",args=[{name="strarg",
+     value="0x11940 \"A string argument.\""}],
+     file="../../../devo/gdb/testsuite/gdb.mi/basics.c",
+     fullname="/home/foo/bar/devo/gdb/testsuite/gdb.mi/basics.c",line="18"}
+     (gdb)
+
+   Listing breakpoints and watchpoints, at different points in the
+program execution.  Note that once the watchpoint goes out of scope, it
+is deleted.
+
+     (gdb)
+     -break-watch C
+     ^done,wpt={number="2",exp="C"}
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="2",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="1",type="breakpoint",disp="keep",enabled="y",
+     addr="0x00010734",func="callee4",
+     file="../../../devo/gdb/testsuite/gdb.mi/basics.c",
+     fullname="/home/foo/devo/gdb/testsuite/gdb.mi/basics.c"line="8",times="1"},
+     bkpt={number="2",type="watchpoint",disp="keep",
+     enabled="y",addr="",what="C",times="0"}]}
+     (gdb)
+     -exec-continue
+     ^running
+     (gdb)
+     *stopped,reason="watchpoint-trigger",wpt={number="2",exp="C"},
+     value={old="-276895068",new="3"},
+     frame={func="callee4",args=[],
+     file="../../../devo/gdb/testsuite/gdb.mi/basics.c",
+     fullname="/home/foo/bar/devo/gdb/testsuite/gdb.mi/basics.c",line="13"}
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="2",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="1",type="breakpoint",disp="keep",enabled="y",
+     addr="0x00010734",func="callee4",
+     file="../../../devo/gdb/testsuite/gdb.mi/basics.c",
+     fullname="/home/foo/devo/gdb/testsuite/gdb.mi/basics.c",line="8",times="1"},
+     bkpt={number="2",type="watchpoint",disp="keep",
+     enabled="y",addr="",what="C",times="-5"}]}
+     (gdb)
+     -exec-continue
+     ^running
+     ^done,reason="watchpoint-scope",wpnum="2",
+     frame={func="callee3",args=[{name="strarg",
+     value="0x11940 \"A string argument.\""}],
+     file="../../../devo/gdb/testsuite/gdb.mi/basics.c",
+     fullname="/home/foo/bar/devo/gdb/testsuite/gdb.mi/basics.c",line="18"}
+     (gdb)
+     -break-list
+     ^done,BreakpointTable={nr_rows="1",nr_cols="6",
+     hdr=[{width="3",alignment="-1",col_name="number",colhdr="Num"},
+     {width="14",alignment="-1",col_name="type",colhdr="Type"},
+     {width="4",alignment="-1",col_name="disp",colhdr="Disp"},
+     {width="3",alignment="-1",col_name="enabled",colhdr="Enb"},
+     {width="10",alignment="-1",col_name="addr",colhdr="Address"},
+     {width="40",alignment="2",col_name="what",colhdr="What"}],
+     body=[bkpt={number="1",type="breakpoint",disp="keep",enabled="y",
+     addr="0x00010734",func="callee4",
+     file="../../../devo/gdb/testsuite/gdb.mi/basics.c",
+     fullname="/home/foo/devo/gdb/testsuite/gdb.mi/basics.c",line="8",
+     times="1"}]}
+     (gdb)
+
+
+File: gdb.info,  Node: GDB/MI Program Context,  Next: GDB/MI Thread Commands,  Prev: GDB/MI Breakpoint Commands,  Up: GDB/MI
+
+27.9 GDB/MI  Program Context
+============================
+
+The `-exec-arguments' Command
+-----------------------------
+
+Synopsis
+........
+
+      -exec-arguments ARGS
+
+   Set the inferior program arguments, to be used in the next
+`-exec-run'.
+
+GDB Command
+...........
+
+The corresponding GDB command is `set args'.
+
+Example
+.......
+
+     (gdb)
+     -exec-arguments -v word
+     ^done
+     (gdb)
+
+The `-environment-cd' Command
+-----------------------------
+
+Synopsis
+........
+
+      -environment-cd PATHDIR
+
+   Set GDB's working directory.
+
+GDB Command
+...........
+
+The corresponding GDB command is `cd'.
+
+Example
+.......
+
+     (gdb)
+     -environment-cd /kwikemart/marge/ezannoni/flathead-dev/devo/gdb
+     ^done
+     (gdb)
+
+The `-environment-directory' Command
+------------------------------------
+
+Synopsis
+........
+
+      -environment-directory [ -r ] [ PATHDIR ]+
+
+   Add directories PATHDIR to beginning of search path for source files.
+If the `-r' option is used, the search path is reset to the default
+search path.  If directories PATHDIR are supplied in addition to the
+`-r' option, the search path is first reset and then addition occurs as
+normal.  Multiple directories may be specified, separated by blanks.
+Specifying multiple directories in a single command results in the
+directories added to the beginning of the search path in the same order
+they were presented in the command.  If blanks are needed as part of a
+directory name, double-quotes should be used around the name.  In the
+command output, the path will show up separated by the system
+directory-separator character.  The directory-separator character must
+not be used in any directory name.  If no directories are specified,
+the current search path is displayed.
+
+GDB Command
+...........
+
+The corresponding GDB command is `dir'.
+
+Example
+.......
+
+     (gdb)
+     -environment-directory /kwikemart/marge/ezannoni/flathead-dev/devo/gdb
+     ^done,source-path="/kwikemart/marge/ezannoni/flathead-dev/devo/gdb:$cdir:$cwd"
+     (gdb)
+     -environment-directory ""
+     ^done,source-path="/kwikemart/marge/ezannoni/flathead-dev/devo/gdb:$cdir:$cwd"
+     (gdb)
+     -environment-directory -r /home/jjohnstn/src/gdb /usr/src
+     ^done,source-path="/home/jjohnstn/src/gdb:/usr/src:$cdir:$cwd"
+     (gdb)
+     -environment-directory -r
+     ^done,source-path="$cdir:$cwd"
+     (gdb)
+
+The `-environment-path' Command
+-------------------------------
+
+Synopsis
+........
+
+      -environment-path [ -r ] [ PATHDIR ]+
+
+   Add directories PATHDIR to beginning of search path for object files.
+If the `-r' option is used, the search path is reset to the original
+search path that existed at gdb start-up.  If directories PATHDIR are
+supplied in addition to the `-r' option, the search path is first reset
+and then addition occurs as normal.  Multiple directories may be
+specified, separated by blanks.  Specifying multiple directories in a
+single command results in the directories added to the beginning of the
+search path in the same order they were presented in the command.  If
+blanks are needed as part of a directory name, double-quotes should be
+used around the name.  In the command output, the path will show up
+separated by the system directory-separator character.  The
+directory-separator character must not be used in any directory name.
+If no directories are specified, the current path is displayed.
+
+GDB Command
+...........
+
+The corresponding GDB command is `path'.
+
+Example
+.......
+
+     (gdb)
+     -environment-path
+     ^done,path="/usr/bin"
+     (gdb)
+     -environment-path /kwikemart/marge/ezannoni/flathead-dev/ppc-eabi/gdb /bin
+     ^done,path="/kwikemart/marge/ezannoni/flathead-dev/ppc-eabi/gdb:/bin:/usr/bin"
+     (gdb)
+     -environment-path -r /usr/local/bin
+     ^done,path="/usr/local/bin:/usr/bin"
+     (gdb)
+
+The `-environment-pwd' Command
+------------------------------
+
+Synopsis
+........
+
+      -environment-pwd
+
+   Show the current working directory.
+
+GDB Command
+...........
+
+The corresponding GDB command is `pwd'.
+
+Example
+.......
+
+     (gdb)
+     -environment-pwd
+     ^done,cwd="/kwikemart/marge/ezannoni/flathead-dev/devo/gdb"
+     (gdb)
+
+
+File: gdb.info,  Node: GDB/MI Thread Commands,  Next: GDB/MI Ada Tasking Commands,  Prev: GDB/MI Program Context,  Up: GDB/MI
+
+27.10 GDB/MI Thread Commands
+============================
+
+The `-thread-info' Command
+--------------------------
+
+Synopsis
+........
+
+      -thread-info [ THREAD-ID ]
+
+   Reports information about either a specific thread, if the THREAD-ID
+parameter is present, or about all threads.  When printing information
+about all threads, also reports the current thread.
+
+GDB Command
+...........
+
+The `info thread' command prints the same information about all threads.
+
+Result
+......
+
+The result is a list of threads.  The following attributes are defined
+for a given thread:
+
+`current'
+     This field exists only for the current thread.  It has the value
+     `*'.
+
+`id'
+     The identifier that GDB uses to refer to the thread.
+
+`target-id'
+     The identifier that the target uses to refer to the thread.
+
+`details'
+     Extra information about the thread, in a target-specific format.
+     This field is optional.
+
+`name'
+     The name of the thread.  If the user specified a name using the
+     `thread name' command, then this name is given.  Otherwise, if GDB
+     can extract the thread name from the target, then that name is
+     given.  If GDB cannot find the thread name, then this field is
+     omitted.
+
+`frame'
+     The stack frame currently executing in the thread.
+
+`state'
+     The thread's state.  The `state' field may have the following
+     values:
+
+    `stopped'
+          The thread is stopped.  Frame information is available for
+          stopped threads.
+
+    `running'
+          The thread is running.  There's no frame information for
+          running threads.
+
+
+`core'
+     If GDB can find the CPU core on which this thread is running, then
+     this field is the core identifier.  This field is optional.
+
+
+Example
+.......
+
+     -thread-info
+     ^done,threads=[
+     {id="2",target-id="Thread 0xb7e14b90 (LWP 21257)",
+        frame={level="0",addr="0xffffe410",func="__kernel_vsyscall",
+                args=[]},state="running"},
+     {id="1",target-id="Thread 0xb7e156b0 (LWP 21254)",
+        frame={level="0",addr="0x0804891f",func="foo",
+                args=[{name="i",value="10"}],
+                file="/tmp/a.c",fullname="/tmp/a.c",line="158"},
+                state="running"}],
+     current-thread-id="1"
+     (gdb)
+
+The `-thread-list-ids' Command
+------------------------------
+
+Synopsis
+........
+
+      -thread-list-ids
+
+   Produces a list of the currently known GDB thread ids.  At the end
+of the list it also prints the total number of such threads.
+
+   This command is retained for historical reasons, the `-thread-info'
+command should be used instead.
+
+GDB Command
+...........
+
+Part of `info threads' supplies the same information.
+
+Example
+.......
+
+     (gdb)
+     -thread-list-ids
+     ^done,thread-ids={thread-id="3",thread-id="2",thread-id="1"},
+     current-thread-id="1",number-of-threads="3"
+     (gdb)
+
+The `-thread-select' Command
+----------------------------
+
+Synopsis
+........
+
+      -thread-select THREADNUM
+
+   Make THREADNUM the current thread.  It prints the number of the new
+current thread, and the topmost frame for that thread.
+
+   This command is deprecated in favor of explicitly using the
+`--thread' option to each command.
+
+GDB Command
+...........
+
+The corresponding GDB command is `thread'.
+
+Example
+.......
+
+     (gdb)
+     -exec-next
+     ^running
+     (gdb)
+     *stopped,reason="end-stepping-range",thread-id="2",line="187",
+     file="../../../devo/gdb/testsuite/gdb.threads/linux-dp.c"
+     (gdb)
+     -thread-list-ids
+     ^done,
+     thread-ids={thread-id="3",thread-id="2",thread-id="1"},
+     number-of-threads="3"
+     (gdb)
+     -thread-select 3
+     ^done,new-thread-id="3",
+     frame={level="0",func="vprintf",
+     args=[{name="format",value="0x8048e9c \"%*s%c %d %c\\n\""},
+     {name="arg",value="0x2"}],file="vprintf.c",line="31"}
+     (gdb)
+
+
+File: gdb.info,  Node: GDB/MI Ada Tasking Commands,  Next: GDB/MI Program Execution,  Prev: GDB/MI Thread Commands,  Up: GDB/MI
+
+27.11 GDB/MI Ada Tasking Commands
+=================================
+
+The `-ada-task-info' Command
+----------------------------
+
+Synopsis
+........
+
+      -ada-task-info [ TASK-ID ]
+
+   Reports information about either a specific Ada task, if the TASK-ID
+parameter is present, or about all Ada tasks.
+
+GDB Command
+...........
+
+The `info tasks' command prints the same information about all Ada
+tasks (*note Ada Tasks::).
+
+Result
+......
+
+The result is a table of Ada tasks.  The following columns are defined
+for each Ada task:
+
+`current'
+     This field exists only for the current thread.  It has the value
+     `*'.
+
+`id'
+     The identifier that GDB uses to refer to the Ada task.
+
+`task-id'
+     The identifier that the target uses to refer to the Ada task.
+
+`thread-id'
+     The identifier of the thread corresponding to the Ada task.
+
+     This field should always exist, as Ada tasks are always implemented
+     on top of a thread.  But if GDB cannot find this corresponding
+     thread for any reason, the field is omitted.
+
+`parent-id'
+     This field exists only when the task was created by another task.
+     In this case, it provides the ID of the parent task.
+
+`priority'
+     The base priority of the task.
+
+`state'
+     The current state of the task.  For a detailed description of the
+     possible states, see *note Ada Tasks::.
+
+`name'
+     The name of the task.
+
+
+Example
+.......
+
+     -ada-task-info
+     ^done,tasks={nr_rows="3",nr_cols="8",
+     hdr=[{width="1",alignment="-1",col_name="current",colhdr=""},
+     {width="3",alignment="1",col_name="id",colhdr="ID"},
+     {width="9",alignment="1",col_name="task-id",colhdr="TID"},
+     {width="4",alignment="1",col_name="thread-id",colhdr=""},
+     {width="4",alignment="1",col_name="parent-id",colhdr="P-ID"},
+     {width="3",alignment="1",col_name="priority",colhdr="Pri"},
+     {width="22",alignment="-1",col_name="state",colhdr="State"},
+     {width="1",alignment="2",col_name="name",colhdr="Name"}],
+     body=[{current="*",id="1",task-id="   644010",thread-id="1",priority="48",
+     state="Child Termination Wait",name="main_task"}]}
+     (gdb)
+
+
+File: gdb.info,  Node: GDB/MI Program Execution,  Next: GDB/MI Stack Manipulation,  Prev: GDB/MI Ada Tasking Commands,  Up: GDB/MI
+
+27.12 GDB/MI Program Execution
 ==============================
 
 These are the asynchronous commands which generate the out-of-band
@@ -501,7 +2101,7 @@ Example
 
 File: gdb.info,  Node: GDB/MI Stack Manipulation,  Next: GDB/MI Variable Objects,  Prev: GDB/MI Program Execution,  Up: GDB/MI
 
-27.12 GDB/MI Stack Manipulation Commands
+27.13 GDB/MI Stack Manipulation Commands
 ========================================
 
 The `-stack-info-frame' Command
@@ -854,7 +2454,7 @@ Example
 
 File: gdb.info,  Node: GDB/MI Variable Objects,  Next: GDB/MI Data Manipulation,  Prev: GDB/MI Stack Manipulation,  Up: GDB/MI
 
-27.13 GDB/MI Variable Objects
+27.14 GDB/MI Variable Objects
 =============================
 
 Introduction to Variable Objects
@@ -921,7 +2521,7 @@ this example:
      }
 
    If a fixed variable object for the `state' variable is created in
-this function, and we enter the recursive call, the the variable object
+this function, and we enter the recursive call, the variable object
 will report the value of `state' in the top-level `do_work' invocation.
 On the other hand, a floating variable object will report the value of
 `state' in the current frame.
@@ -1564,7 +3164,7 @@ be used to instantiate this class for a varobj:
 
 File: gdb.info,  Node: GDB/MI Data Manipulation,  Next: GDB/MI Tracepoint Commands,  Prev: GDB/MI Variable Objects,  Up: GDB/MI
 
-27.14 GDB/MI Data Manipulation
+27.15 GDB/MI Data Manipulation
 ==============================
 
 This section describes the GDB/MI commands that manipulate data:
@@ -2120,7 +3720,7 @@ Example
 
 File: gdb.info,  Node: GDB/MI Tracepoint Commands,  Next: GDB/MI Symbol Query,  Prev: GDB/MI Data Manipulation,  Up: GDB/MI
 
-27.15 GDB/MI Tracepoint Commands
+27.16 GDB/MI Tracepoint Commands
 ================================
 
 The commands defined in this section implement MI support for
@@ -2378,7 +3978,7 @@ The corresponding GDB command is `tstop'.
 
 File: gdb.info,  Node: GDB/MI Symbol Query,  Next: GDB/MI File Commands,  Prev: GDB/MI Tracepoint Commands,  Up: GDB/MI
 
-27.16 GDB/MI Symbol Query Commands
+27.17 GDB/MI Symbol Query Commands
 ==================================
 
 The `-symbol-list-lines' Command
@@ -2409,7 +4009,7 @@ Example
 
 File: gdb.info,  Node: GDB/MI File Commands,  Next: GDB/MI Target Manipulation,  Prev: GDB/MI Symbol Query,  Up: GDB/MI
 
-27.17 GDB/MI File Commands
+27.18 GDB/MI File Commands
 ==========================
 
 This section describes the GDB/MI commands to specify executable file
@@ -2554,7 +4154,7 @@ Example
 
 File: gdb.info,  Node: GDB/MI Target Manipulation,  Next: GDB/MI File Transfer Commands,  Prev: GDB/MI File Commands,  Up: GDB/MI
 
-27.18 GDB/MI Target Manipulation Commands
+27.19 GDB/MI Target Manipulation Commands
 =========================================
 
 The `-target-attach' Command
@@ -2785,7 +4385,7 @@ Example
 
 File: gdb.info,  Node: GDB/MI File Transfer Commands,  Next: GDB/MI Miscellaneous Commands,  Prev: GDB/MI Target Manipulation,  Up: GDB/MI
 
-27.19 GDB/MI File Transfer Commands
+27.20 GDB/MI File Transfer Commands
 ===================================
 
 The `-target-file-put' Command
@@ -2862,7 +4462,7 @@ Example
 
 File: gdb.info,  Node: GDB/MI Miscellaneous Commands,  Prev: GDB/MI File Transfer Commands,  Up: GDB/MI
 
-27.20 Miscellaneous GDB/MI Commands
+27.21 Miscellaneous GDB/MI Commands
 ===================================
 
 The `-gdb-exit' Command
@@ -2989,26 +4589,32 @@ given below.
    The current list of features is:
 
 `frozen-varobjs'
-     Indicates presence of the `-var-set-frozen' command, as well as
+     Indicates support for the `-var-set-frozen' command, as well as
      possible presense of the `frozen' field in the output of
      `-varobj-create'.
 
 `pending-breakpoints'
-     Indicates presence of the `-f' option to the `-break-insert'
+     Indicates support for the `-f' option to the `-break-insert'
      command.
 
 `python'
-     Indicates presence of Python scripting support, Python-based
-     pretty-printing commands, and possible presence of the
-     `display_hint' field in the output of `-var-list-children'
+     Indicates Python scripting support, Python-based pretty-printing
+     commands, and possible presence of the `display_hint' field in the
+     output of `-var-list-children'
 
 `thread-info'
-     Indicates presence of the `-thread-info' command.
+     Indicates support for the `-thread-info' command.
 
 `data-read-memory-bytes'
-     Indicates presense of the `-data-read-memory-bytes' and the
+     Indicates support for the `-data-read-memory-bytes' and the
      `-data-write-memory-bytes' commands.
 
+`breakpoint-notifications'
+     Indicates that changes to breakpoints and breakpoints created via
+     the CLI will be announced via async records.
+
+`ada-task-info'
+     Indicates support for the `-ada-task-info' command.
 
 The `-list-target-features' Command
 -----------------------------------
@@ -3593,6 +5199,7 @@ so that it can find out about additional code.
 * Declarations::                Relevant C struct declarations
 * Registering Code::            Steps to register code
 * Unregistering Code::          Steps to unregister code
+* Custom Debug Info::           Emit debug information in a custom format
 
 
 File: gdb.info,  Node: Declarations,  Next: Registering Code,  Up: JIT Interface
@@ -3669,7 +5276,7 @@ to allow GDB to attach to a running process and still find the symbol
 files.
 
 
-File: gdb.info,  Node: Unregistering Code,  Prev: Registering Code,  Up: JIT Interface
+File: gdb.info,  Node: Unregistering Code,  Next: Custom Debug Info,  Prev: Registering Code,  Up: JIT Interface
 
 29.3 Unregistering Code
 =======================
@@ -3688,6 +5295,109 @@ If code is freed, then the JIT should use the following protocol:
    If the JIT frees or recompiles code without unregistering it, then
 GDB and the JIT will leak the memory used for the associated symbol
 files.
+
+
+File: gdb.info,  Node: Custom Debug Info,  Prev: Unregistering Code,  Up: JIT Interface
+
+29.4 Custom Debug Info
+======================
+
+Generating debug information in platform-native file formats (like ELF
+or COFF) may be an overkill for JIT compilers; especially if all the
+debug info is used for is displaying a meaningful backtrace.  The issue
+can be resolved by having the JIT writers decide on a debug info format
+and also provide a reader that parses the debug info generated by the
+JIT compiler.  This section gives a brief overview on writing such a
+parser.  More specific details can be found in the source file
+`gdb/jit-reader.in', which is also installed as a header at
+`INCLUDEDIR/gdb/jit-reader.h' for easy inclusion.
+
+   The reader is implemented as a shared object (so this functionality
+is not available on platforms which don't allow loading shared objects
+at runtime).  Two GDB commands, `jit-reader-load' and
+`jit-reader-unload' are provided, to be used to load and unload the
+readers from a preconfigured directory.  Once loaded, the shared object
+is used the parse the debug information emitted by the JIT compiler.
+
+* Menu:
+
+* Using JIT Debug Info Readers::       How to use supplied readers correctly
+* Writing JIT Debug Info Readers::     Creating a debug-info reader
+
+
+File: gdb.info,  Node: Using JIT Debug Info Readers,  Next: Writing JIT Debug Info Readers,  Up: Custom Debug Info
+
+29.4.1 Using JIT Debug Info Readers
+-----------------------------------
+
+Readers can be loaded and unloaded using the `jit-reader-load' and
+`jit-reader-unload' commands.
+
+`jit-reader-load READER-NAME'
+     Load the JIT reader named READER-NAME.  On a UNIX system, this
+     will usually load `LIBDIR/gdb/READER-NAME', where LIBDIR is the
+     system library directory, usually `/usr/local/lib'.  Only one
+     reader can be active at a time; trying to load a second reader
+     when one is already loaded will result in GDB reporting an error.
+     A new JIT reader can be loaded by first unloading the current one
+     using `jit-reader-load' and then invoking `jit-reader-load'.
+
+`jit-reader-unload'
+     Unload the currently loaded JIT reader.
+
+
+
+File: gdb.info,  Node: Writing JIT Debug Info Readers,  Prev: Using JIT Debug Info Readers,  Up: Custom Debug Info
+
+29.4.2 Writing JIT Debug Info Readers
+-------------------------------------
+
+As mentioned, a reader is essentially a shared object conforming to a
+certain ABI.  This ABI is described in `jit-reader.h'.
+
+   `jit-reader.h' defines the structures, macros and functions required
+to write a reader.  It is installed (along with GDB), in
+`INCLUDEDIR/gdb' where INCLUDEDIR is the system include directory.
+
+   Readers need to be released under a GPL compatible license.  A reader
+can be declared as released under such a license by placing the macro
+`GDB_DECLARE_GPL_COMPATIBLE_READER' in a source file.
+
+   The entry point for readers is the symbol `gdb_init_reader', which
+is expected to be a function with the prototype
+
+     extern struct gdb_reader_funcs *gdb_init_reader (void);
+
+   `struct gdb_reader_funcs' contains a set of pointers to callback
+functions.  These functions are executed to read the debug info
+generated by the JIT compiler (`read'), to unwind stack frames
+(`unwind') and to create canonical frame IDs (`get_Frame_id').  It also
+has a callback that is called when the reader is being unloaded
+(`destroy').  The struct looks like this
+
+     struct gdb_reader_funcs
+     {
+       /* Must be set to GDB_READER_INTERFACE_VERSION.  */
+       int reader_version;
+
+       /* For use by the reader.  */
+       void *priv_data;
+
+       gdb_read_debug_info *read;
+       gdb_unwind_frame *unwind;
+       gdb_get_frame_id *get_frame_id;
+       gdb_destroy_reader *destroy;
+     };
+
+   The callbacks are provided with another set of callbacks by GDB to
+do their job.  For `read', these callbacks are passed in a `struct
+gdb_symbol_callbacks' and for `unwind' and `get_frame_id', in a `struct
+gdb_unwind_callbacks'.  `struct gdb_symbol_callbacks' has callbacks to
+create new object files and new symbol tables inside those object
+files.  `struct gdb_unwind_callbacks' has callbacks to read registers
+off the current frame and to write out the values of the registers in
+the previous frame.  Both have a callback (`target_read') to read bytes
+off the target's address space.
 
 
 File: gdb.info,  Node: GDB Bugs,  Next: Command Line Editing,  Prev: JIT Interface,  Up: Top
@@ -4171,7 +5881,8 @@ of keybindings.  Any user can customize programs that use Readline by
 putting commands in an "inputrc" file, conventionally in his home
 directory.  The name of this file is taken from the value of the
 environment variable `INPUTRC'.  If that variable is unset, the default
-is `~/.inputrc'.
+is `~/.inputrc'.  If that file does not exist or cannot be read, the
+ultimate default is `/etc/inputrc'.
 
    When a program which uses the Readline library starts up, the init
 file is read, and the key bindings are set.
@@ -4238,10 +5949,30 @@ Variable Settings
           `insert-comment' command is executed.  The default value is
           `"#"'.
 
+    `completion-display-width'
+          The number of screen columns used to display possible matches
+          when performing completion.  The value is ignored if it is
+          less than 0 or greater than the terminal screen width.  A
+          value of 0 will cause matches to be displayed one per line.
+          The default value is -1.
+
     `completion-ignore-case'
           If set to `on', Readline performs filename matching and
           completion in a case-insensitive fashion.  The default value
           is `off'.
+
+    `completion-map-case'
+          If set to `on', and COMPLETION-IGNORE-CASE is enabled,
+          Readline treats hyphens (`-') and underscores (`_') as
+          equivalent when performing case-insensitive filename matching
+          and completion.
+
+    `completion-prefix-display-length'
+          The length in characters of the common prefix of a list of
+          possible completions that is displayed without modification.
+          When set to a value greater than zero, common prefixes longer
+          than this value are replaced with an ellipsis when displaying
+          possible completions.
 
     `completion-query-items'
           The number of possible completions that determines when the
@@ -4270,19 +6001,36 @@ Variable Settings
           editing mode, where the keystrokes are most similar to Emacs.
           This variable can be set to either `emacs' or `vi'.
 
+    `echo-control-characters'
+          When set to `on', on operating systems that indicate they
+          support it, readline echoes a character corresponding to a
+          signal generated from the keyboard.  The default is `on'.
+
     `enable-keypad'
           When set to `on', Readline will try to enable the application
           keypad when it is called.  Some systems need this to enable
           the arrow keys.  The default is `off'.
+
+    `enable-meta-key'
+          When set to `on', Readline will try to enable any meta
+          modifier key the terminal claims to support when it is
+          called.  On many terminals, the meta key is used to send
+          eight-bit characters.  The default is `on'.
 
     `expand-tilde'
           If set to `on', tilde expansion is performed when Readline
           attempts word completion.  The default is `off'.
 
     `history-preserve-point'
-          If set to `on', the history code attempts to place point at
-          the same location on each history line retrieved with
-          `previous-history' or `next-history'.  The default is `off'.
+          If set to `on', the history code attempts to place the point
+          (the current cursor position) at the same location on each
+          history line retrieved with `previous-history' or
+          `next-history'.  The default is `off'.
+
+    `history-size'
+          Set the maximum number of history entries saved in the
+          history list.  If set to zero, the number of entries in the
+          history list is not limited.
 
     `horizontal-scroll-mode'
           This variable can be set to either `on' or `off'.  Setting it
@@ -4331,9 +6079,14 @@ Variable Settings
     `match-hidden-files'
           This variable, when set to `on', causes Readline to match
           files whose names begin with a `.' (hidden files) when
-          performing filename completion, unless the leading `.' is
-          supplied by the user in the filename to be completed.  This
-          variable is `on' by default.
+          performing filename completion.  If set to `off', the leading
+          `.' must be supplied by the user in the filename to be
+          completed.  This variable is `on' by default.
+
+    `menu-complete-display-prefix'
+          If set to `on', menu completion displays the common prefix of
+          the list of possible completions (which may be empty) before
+          cycling through the list.  The default is `off'.
 
     `output-meta'
           If set to `on', Readline will display characters with the
@@ -4350,6 +6103,12 @@ Variable Settings
           sorted horizontally in alphabetical order, rather than down
           the screen.  The default is `off'.
 
+    `revert-all-at-newline'
+          If set to `on', Readline will undo all changes to history
+          lines before returning when `accept-line' is executed.  By
+          default, history lines may be modified and retain individual
+          undo lists across calls to `readline'.  The default is `off'.
+
     `show-all-if-ambiguous'
           This alters the default behavior of the completion functions.
           If set to `on', words which have more than one possible
@@ -4364,6 +6123,19 @@ Variable Settings
           completions don't share a common prefix) cause the matches to
           be listed immediately instead of ringing the bell.  The
           default value is `off'.
+
+    `skip-completed-text'
+          If set to `on', this alters the default completion behavior
+          when inserting a single match into the line.  It's only
+          active when performing completion in the middle of a word.
+          If enabled, readline does not insert characters from the
+          completion that match characters after point in the word
+          being completed, so portions of the word following the cursor
+          are not duplicated.  For instance, if this is enabled,
+          attempting completion when the cursor is after the `e' in
+          `Makefile' will result in `Makefile' rather than
+          `Makefilefile', assuming there is a single possible
+          completion.  The default value is `off'.
 
     `visible-stats'
           If set to `on', a character denoting a file's type is
@@ -4380,9 +6152,10 @@ Key Bindings
 
      Once you know the name of the command, simply place on a line in
      the init file the name of the key you wish to bind the command to,
-     a colon, and then the name of the command.  The name of the key
-     can be expressed in different ways, depending on what you find most
-     comfortable.
+     a colon, and then the name of the command.  There can be no space
+     between the key name and the colon - that will be interpreted as
+     part of the key name.  The name of the key can be expressed in
+     different ways, depending on what you find most comfortable.
 
      In addition to command names, readline allows keys to be bound to
      a string that is inserted when the key is pressed (a MACRO).
@@ -4784,11 +6557,16 @@ File: gdb.info,  Node: Commands For History,  Next: Commands For Text,  Prev: Co
 
 `yank-last-arg (M-. or M-_)'
      Insert last argument to the previous command (the last word of the
-     previous history entry).  With an argument, behave exactly like
-     `yank-nth-arg'.  Successive calls to `yank-last-arg' move back
-     through the history list, inserting the last argument of each line
-     in turn.  The history expansion facilities are used to extract the
-     last argument, as if the `!$' history expansion had been specified.
+     previous history entry).  With a numeric argument, behave exactly
+     like `yank-nth-arg'.  Successive calls to `yank-last-arg' move
+     back through the history list, inserting the last word (or the
+     word specified by the argument to the first call) of each line in
+     turn.  Any numeric argument supplied to these successive calls
+     determines the direction to move through the history.  A negative
+     argument switches the direction through the history (back or
+     forward).  The history expansion facilities are used to extract
+     the last argument, as if the `!$' history expansion had been
+     specified.
 
 
 
@@ -4960,7 +6738,11 @@ File: gdb.info,  Node: Commands For Completion,  Next: Keyboard Macros,  Prev: N
      is filename completion.
 
 `possible-completions (M-?)'
-     List the possible completions of the text before point.
+     List the possible completions of the text before point.  When
+     displaying completions, Readline sets the number of columns used
+     for display to the value of `completion-display-width', the value
+     of the environment variable `COLUMNS', or the screen width, in
+     that order.
 
 `insert-completions (M-*)'
      Insert all completions of the text before point that would have
@@ -4977,6 +6759,11 @@ File: gdb.info,  Node: Commands For Completion,  Next: Keyboard Macros,  Prev: N
      argument may be used to move backward through the list.  This
      command is intended to be bound to <TAB>, but is unbound by
      default.
+
+`menu-complete-backward ()'
+     Identical to `menu-complete', but moves backward through the list
+     of possible completions, as if `menu-complete' had been given a
+     negative argument.
 
 `delete-char-or-list ()'
      Deletes the character under the cursor if not at the beginning or
@@ -5054,6 +6841,15 @@ File: gdb.info,  Node: Miscellaneous Commands,  Prev: Keyboard Macros,  Up: Bind
      of that character.  A negative count searches for subsequent
      occurrences.
 
+`skip-csi-sequence ()'
+     Read enough characters to consume a multi-key sequence such as
+     those defined for keys like Home and End.  Such sequences begin
+     with a Control Sequence Indicator (CSI), usually ESC-[.  If this
+     sequence is bound to "\e[", keys producing such sequences will
+     have no effect unless explicitly bound to a readline command,
+     instead of inserting stray characters into the editing buffer.
+     This is unbound by default, but usually bound to ESC-[.
+
 `insert-comment (M-#)'
      Without a numeric argument, the value of the `comment-begin'
      variable is inserted at the beginning of the current line.  If a
@@ -5099,8 +6895,7 @@ File: gdb.info,  Node: Readline vi Mode,  Prev: Bindable Readline Commands,  Up:
 
 While the Readline library does not have a full set of `vi' editing
 functions, it does contain enough to allow simple editing of the line.
-The Readline `vi' mode behaves as specified in the POSIX 1003.2
-standard.
+The Readline `vi' mode behaves as specified in the POSIX standard.
 
    In order to switch interactively between `emacs' and `vi' editing
 modes, use the command `M-C-j' (bound to emacs-editing-mode when in
@@ -5121,8 +6916,9 @@ File: gdb.info,  Node: Using History Interactively,  Next: In Memoriam,  Prev: C
 
 This chapter describes how to use the GNU History Library interactively,
 from a user's standpoint.  It should be considered a user's guide.  For
-information on using the GNU History Library in other programs, see the
-GNU Readline Library Manual.
+information on using the GNU History Library in your own programs,
+*note Programming with GNU History: (history)Programming with GNU
+History.
 
 * Menu:
 
@@ -5167,7 +6963,8 @@ File: gdb.info,  Node: Event Designators,  Next: Word Designators,  Up: History 
 ------------------------
 
 An event designator is a reference to a command line entry in the
-history list.  
+history list.  Unless the reference is absolute, events are relative to
+the current position in the history list.  
 
 `!'
      Start a history substitution, except when followed by a space, tab,
@@ -5183,12 +6980,13 @@ history list.
      Refer to the previous command.  This is a synonym for `!-1'.
 
 `!STRING'
-     Refer to the most recent command starting with STRING.
+     Refer to the most recent command preceding the current position in
+     the history list starting with STRING.
 
 `!?STRING[?]'
-     Refer to the most recent command containing STRING.  The trailing
-     `?' may be omitted if the STRING is followed immediately by a
-     newline.
+     Refer to the most recent command preceding the current position in
+     the history list containing STRING.  The trailing `?' may be
+     omitted if the STRING is followed immediately by a newline.
 
 `^STRING1^STRING2^'
      Quick Substitution.  Repeat the last command, replacing STRING1
@@ -5273,7 +7071,7 @@ more of the following modifiers, each preceded by a `:'.
      Remove a trailing pathname component, leaving only the head.
 
 `t'
-     Remove all leading  pathname  components, leaving the tail.
+     Remove all leading pathname components, leaving the tail.
 
 `r'
      Remove a trailing suffix of the form `.SUFFIX', leaving the
@@ -5359,7 +7157,7 @@ and TeX (or `texi2roff') to typeset the printed version.
 
    GDB includes an already formatted copy of the on-line Info version
 of this manual in the `gdb' subdirectory.  The main Info file is
-`gdb-linaro-7.3-2011.12/gdb/gdb.info', and it refers to subordinate
+`gdb-linaro-7.4-2012.06/gdb/gdb.info', and it refers to subordinate
 files matching `gdb.info*' in the same directory.  If necessary, you
 can print out these files, or read them with any editor; but they are
 easier to read using the `info' subsystem in GNU Emacs or the
@@ -5370,8 +7168,8 @@ distribution.
 Info formatting programs, such as `texinfo-format-buffer' or `makeinfo'.
 
    If you have `makeinfo' installed, and are in the top level GDB
-source directory (`gdb-linaro-7.3-2011.12', in the case of version
-7.3-2011.12), you can make the Info file by typing:
+source directory (`gdb-linaro-7.4-2012.06', in the case of version
+7.4-2012.06), you can make the Info file by typing:
 
      cd gdb
      make gdb.info
@@ -5396,7 +7194,7 @@ format.  On its own, TeX cannot either read or typeset a Texinfo file.
 
    If you have TeX and a DVI printer program installed, you can typeset
 and print this manual.  First switch to the `gdb' subdirectory of the
-main source directory (for example, to `gdb-linaro-7.3-2011.12/gdb')
+main source directory (for example, to `gdb-linaro-7.4-2012.06/gdb')
 and type:
 
      make gdb.dvi
@@ -5405,8 +7203,8 @@ and type:
 
    ---------- Footnotes ----------
 
-   (1) In `gdb-linaro-7.3-2011.12/gdb/refcard.ps' of the version
-7.3-2011.12 release.
+   (1) In `gdb-linaro-7.4-2012.06/gdb/refcard.ps' of the version
+7.4-2012.06 release.
 
 
 File: gdb.info,  Node: Installing GDB,  Next: Maintenance Commands,  Prev: Formatting Documentation,  Up: Top
@@ -5457,7 +7255,8 @@ Expat
 
         * Target descriptions (*note Target Descriptions::)
 
-        * Remote shared library lists (*note Library List Format::)
+        * Remote shared library lists (*Note Library List Format::, or
+          alternatively *note Library List Format for SVR4 Targets::)
 
         * MS-Windows shared libraries (*note Shared Libraries::)
 
@@ -5480,7 +7279,12 @@ iconv
      system, then this is provided by the GNU C Library.  Some other
      systems also provide a working `iconv'.
 
-     On systems with `iconv', you can install GNU Libiconv.  If you
+     If GDB is using the `iconv' program which is installed in a
+     non-standard place, you will need to tell GDB where to find it.
+     This is done with `--with-iconv-bin' which specifies the directory
+     that contains the `iconv' program.
+
+     On systems without `iconv', you can install GNU Libiconv.  If you
      have previously installed Libiconv, you can use the
      `--with-libiconv-prefix' option to configure.
 
@@ -5507,39 +7311,39 @@ preparing GDB for installation; you can then use `make' to build the
 in a single directory, whose name is usually composed by appending the
 version number to `gdb'.
 
-   For example, the GDB version 7.3-2011.12 distribution is in the
-`gdb-linaro-7.3-2011.12' directory.  That directory contains:
+   For example, the GDB version 7.4-2012.06 distribution is in the
+`gdb-linaro-7.4-2012.06' directory.  That directory contains:
 
-`gdb-linaro-7.3-2011.12/configure (and supporting files)'
+`gdb-linaro-7.4-2012.06/configure (and supporting files)'
      script for configuring GDB and all its supporting libraries
 
-`gdb-linaro-7.3-2011.12/gdb'
+`gdb-linaro-7.4-2012.06/gdb'
      the source specific to GDB itself
 
-`gdb-linaro-7.3-2011.12/bfd'
+`gdb-linaro-7.4-2012.06/bfd'
      source for the Binary File Descriptor library
 
-`gdb-linaro-7.3-2011.12/include'
+`gdb-linaro-7.4-2012.06/include'
      GNU include files
 
-`gdb-linaro-7.3-2011.12/libiberty'
+`gdb-linaro-7.4-2012.06/libiberty'
      source for the `-liberty' free software library
 
-`gdb-linaro-7.3-2011.12/opcodes'
+`gdb-linaro-7.4-2012.06/opcodes'
      source for the library of opcode tables and disassemblers
 
-`gdb-linaro-7.3-2011.12/readline'
+`gdb-linaro-7.4-2012.06/readline'
      source for the GNU command-line interface
 
-`gdb-linaro-7.3-2011.12/glob'
+`gdb-linaro-7.4-2012.06/glob'
      source for the GNU filename pattern-matching subroutine
 
-`gdb-linaro-7.3-2011.12/mmalloc'
+`gdb-linaro-7.4-2012.06/mmalloc'
      source for the GNU memory-mapped malloc package
 
    The simplest way to configure and build GDB is to run `configure'
 from the `gdb-VERSION-NUMBER' source directory, which in this example
-is the `gdb-linaro-7.3-2011.12' directory.
+is the `gdb-linaro-7.4-2012.06' directory.
 
    First switch to the `gdb-VERSION-NUMBER' source directory if you are
 not already in it; then run `configure'.  Pass the identifier for the
@@ -5547,7 +7351,7 @@ platform on which GDB will run as an argument.
 
    For example:
 
-     cd gdb-linaro-7.3-2011.12
+     cd gdb-linaro-7.4-2012.06
      ./configure HOST
      make
 
@@ -5569,7 +7373,7 @@ you may need to run `sh' on it explicitly:
 
    If you run `configure' from a directory that contains source
 directories for multiple libraries or programs, such as the
-`gdb-linaro-7.3-2011.12' source directory for version 7.3-2011.12,
+`gdb-linaro-7.4-2012.06' source directory for version 7.4-2012.06,
 `configure' creates configuration files for every directory level
 underneath (unless you tell it not to, with the `--norecursion' option).
 
@@ -5610,13 +7414,13 @@ directory.  If the path to `configure' would be the same as the
 argument to `--srcdir', you can leave out the `--srcdir' option; it is
 assumed.)
 
-   For example, with version 7.3-2011.12, you can build GDB in a
+   For example, with version 7.4-2012.06, you can build GDB in a
 separate directory for a Sun 4 like this:
 
-     cd gdb-linaro-7.3-2011.12
+     cd gdb-linaro-7.4-2012.06
      mkdir ../gdb-sun4
      cd ../gdb-sun4
-     ../gdb-linaro-7.3-2011.12/configure sun4
+     ../gdb-linaro-7.4-2012.06/configure sun4
      make
 
    When `configure' builds a configuration using a remote source
@@ -5627,7 +7431,7 @@ directory `gdb-sun4/libiberty', and GDB itself in `gdb-sun4/gdb'.
 
    Make sure that your path to the `configure' script has just one
 instance of `gdb' in it.  If your path to `configure' looks like
-`../gdb-linaro-7.3-2011.12/gdb/configure', you are configuring only one
+`../gdb-linaro-7.4-2012.06/gdb/configure', you are configuring only one
 subdirectory of GDB, not the whole package.  This leads to build errors
 about missing include files such as `bfd/bfd.h'.
 
@@ -5643,8 +7447,8 @@ called `configure' (or one of its subdirectories).
 
    The `Makefile' that `configure' generates in each source directory
 also runs recursively.  If you type `make' in a source directory such
-as `gdb-linaro-7.3-2011.12' (or in a separate configured directory
-configured with `--srcdir=DIRNAME/gdb-linaro-7.3-2011.12'), you will
+as `gdb-linaro-7.4-2012.06' (or in a separate configured directory
+configured with `--srcdir=DIRNAME/gdb-linaro-7.4-2012.06'), you will
 build all the required libraries, and then build GDB.
 
    When you have multiple hosts or targets configured in separate
@@ -5689,7 +7493,7 @@ you can use it to test your guesses on abbreviations--for example:
      Invalid configuration `i986v': machine `i986v' not recognized
 
 `config.sub' is also distributed in the GDB source directory
-(`gdb-linaro-7.3-2011.12', for version 7.3-2011.12).
+(`gdb-linaro-7.4-2012.06', for version 7.4-2012.06).
 
 
 File: gdb.info,  Node: Configure Options,  Next: System-wide configuration,  Prev: Config Names,  Up: Installing GDB
@@ -5968,14 +7772,18 @@ Debugging Output::.)
 `maint print raw-registers [FILE]'
 `maint print cooked-registers [FILE]'
 `maint print register-groups [FILE]'
+`maint print remote-registers [FILE]'
      Print GDB's internal register data structures.
 
      The command `maint print raw-registers' includes the contents of
      the raw register cache; the command `maint print cooked-registers'
      includes the (cooked) value of all registers, including registers
-     which aren't available on the target nor visible to user; and the
-     command `maint print register-groups' includes the groups that each
-     register is a member of.  *Note Registers: (gdbint)Registers.
+     which aren't available on the target nor visible to user; the
+     command `maint print register-groups' includes the groups that
+     each register is a member of; and the command `maint print
+     remote-registers' includes the remote target's register numbers
+     and offsets in the `G' packets.  *Note Registers:
+     (gdbint)Registers.
 
      These commands take an optional parameter, a file name to which to
      write the information.
@@ -6117,15 +7925,17 @@ Debugging Output::.)
      switch (*note Mode Options::).
 
 `maint time'
-     Control whether to display the execution time for each command.  If
-     set to a nonzero value, GDB will display how much time it took to
-     execute each command, following the command's own output.  The
-     time is not printed for the commands that run the target, since
-     there's no mechanism currently to compute how much time was spend
-     by GDB and how much time was spend by the program been debugged.
-     it's not possibly currently This can also be requested by invoking
-     GDB with the `--statistics' command-line switch (*note Mode
-     Options::).
+     Control whether to display the execution time of GDB for each
+     command.  If set to a nonzero value, GDB will display how much
+     time it took to execute each command, following the command's own
+     output.  Both CPU time and wallclock time are printed.  Printing
+     both is useful when trying to determine whether the cost is CPU
+     or, e.g., disk/network, latency.  Note that the CPU time printed
+     is for GDB only, it does not include the execution time of the
+     inferior because there's no mechanism currently to compute how
+     much time was spent by GDB and how much time was spent by the
+     program been debugged.  This can also be requested by invoking GDB
+     with the `--statistics' command-line switch (*note Mode Options::).
 
 `maint translate-address [SECTION] ADDR'
      Find the symbol stored at the location specified by the address
@@ -6174,6 +7984,7 @@ Appendix E GDB Remote Serial Protocol
 * Examples::
 * File-I/O Remote Protocol Extension::
 * Library List Format::
+* Library List Format for SVR4 Targets::
 * Memory Map Format::
 * Thread List Format::
 * Traceframe Info Format::
@@ -6279,8 +8090,12 @@ error number.  That number is not well defined.
 protocol.  A newer GDB can tell if a packet is supported based on that
 response.
 
-   A stub is required to support the `g', `G', `m', `M', `c', and `s'
-COMMANDs.  All other COMMANDs are optional.
+   At a minimum, a stub is required to support the `g' and `G' commands
+for register access, and the `m' and `M' commands for memory access.
+Stubs that only control single-threaded targets can implement run
+control with the `c' (continue), and `s' (step) commands.  Stubs that
+support multi-threading targets should support the `vCont' command.
+All other commands are optional.
 
 
 File: gdb.info,  Node: Packets,  Next: Stop Reply Packets,  Prev: Overview,  Up: Remote Protocol
@@ -6395,11 +8210,17 @@ letter, other than those described here, are reserved for future use.
      Continue.  ADDR is address to resume.  If ADDR is omitted, resume
      at current address.
 
+     This packet is deprecated for multi-threading support.  *Note
+     vCont packet::.
+
      Reply: *Note Stop Reply Packets::, for the reply specifications.
 
 `C SIG[;ADDR]'
      Continue with signal SIG (hex signal number).  If `;ADDR' is
      omitted, resume at same address.
+
+     This packet is deprecated for multi-threading support.  *Note
+     vCont packet::.
 
      Reply: *Note Stop Reply Packets::, for the reply specifications.
 
@@ -6472,12 +8293,13 @@ letter, other than those described here, are reserved for future use.
     `E NN'
           for an error
 
-`H C THREAD-ID'
+`H OP THREAD-ID'
      Set thread for subsequent operations (`m', `M', `g', `G', et.al.).
-     C depends on the operation to be performed: it should be `c' for
-     step and continue operations, `g' for other operations.  The
-     thread designator THREAD-ID has the format and interpretation
-     described in *note thread-id syntax::.
+     OP depends on the operation to be performed: it should be `c' for
+     step and continue operations (note that this is deprecated,
+     supporting the `vCont' command is a better option), `g' for other
+     operations.  The thread designator THREAD-ID has the format and
+     interpretation described in *note thread-id syntax::.
 
      Reply:
     `OK'
@@ -6583,12 +8405,18 @@ letter, other than those described here, are reserved for future use.
      Single step.  ADDR is the address at which to resume.  If ADDR is
      omitted, resume at same address.
 
+     This packet is deprecated for multi-threading support.  *Note
+     vCont packet::.
+
      Reply: *Note Stop Reply Packets::, for the reply specifications.
 
 `S SIG[;ADDR]'
      Step with signal.  This is analogous to the `C' packet, but
      requests a single-step, rather than a normal resumption of
      execution.
+
+     This packet is deprecated for multi-threading support.  *Note
+     vCont packet::.
 
      Reply: *Note Stop Reply Packets::, for the reply specifications.
 
@@ -7016,1532 +8844,4 @@ components.
      expected to be continued.  *Note File-I/O Remote Protocol
      Extension::, for more details.
 
-
-
-File: gdb.info,  Node: General Query Packets,  Next: Architecture-Specific Protocol Details,  Prev: Stop Reply Packets,  Up: Remote Protocol
-
-E.4 General Query Packets
-=========================
-
-Packets starting with `q' are "general query packets"; packets starting
-with `Q' are "general set packets".  General query and set packets are
-a semi-unified form for retrieving and sending information to and from
-the stub.
-
-   The initial letter of a query or set packet is followed by a name
-indicating what sort of thing the packet applies to.  For example, GDB
-may use a `qSymbol' packet to exchange symbol definitions with the
-stub.  These packet names follow some conventions:
-
-   * The name must not contain commas, colons or semicolons.
-
-   * Most GDB query and set packets have a leading upper case letter.
-
-   * The names of custom vendor packets should use a company prefix, in
-     lower case, followed by a period.  For example, packets designed at
-     the Acme Corporation might begin with `qacme.foo' (for querying
-     foos) or `Qacme.bar' (for setting bars).
-
-   The name of a query or set packet should be separated from any
-parameters by a `:'; the parameters themselves should be separated by
-`,' or `;'.  Stubs must be careful to match the full packet name, and
-check for a separator or the end of the packet, in case two packet
-names share a common prefix.  New packets should not begin with `qC',
-`qP', or `qL'(1).
-
-   Like the descriptions of the other packets, each description here
-has a template showing the packet's overall syntax, followed by an
-explanation of the packet's meaning.  We include spaces in some of the
-templates for clarity; these are not part of the packet's syntax.  No
-GDB packet uses spaces to separate its components.
-
-   Here are the currently defined query and set packets:
-
-`QAllow:OP:VAL...'
-     Specify which operations GDB expects to request of the target, as
-     a semicolon-separated list of operation name and value pairs.
-     Possible values for OP include `WriteReg', `WriteMem',
-     `InsertBreak', `InsertTrace', `InsertFastTrace', and `Stop'. VAL
-     is either 0, indicating that GDB will not request the operation,
-     or 1, indicating that it may.  (The target can then use this to
-     set up its own internals optimally, for instance if the debugger
-     never expects to insert breakpoints, it may not need to install
-     its own trap handler.)
-
-`qC'
-     Return the current thread ID.
-
-     Reply:
-    `QC THREAD-ID'
-          Where THREAD-ID is a thread ID as documented in *note
-          thread-id syntax::.
-
-    `(anything else)'
-          Any other reply implies the old thread ID.
-
-`qCRC:ADDR,LENGTH'
-     Compute the CRC checksum of a block of memory using CRC-32 defined
-     in IEEE 802.3.  The CRC is computed byte at a time, taking the most
-     significant bit of each byte first.  The initial pattern code
-     `0xffffffff' is used to ensure leading zeros affect the CRC.
-
-     _Note:_ This is the same CRC used in validating separate debug
-     files (*note Debugging Information in Separate Files: Separate
-     Debug Files.).  However the algorithm is slightly different.  When
-     validating separate debug files, the CRC is computed taking the
-     _least_ significant bit of each byte first, and the final result
-     is inverted to detect trailing zeros.
-
-     Reply:
-    `E NN'
-          An error (such as memory fault)
-
-    `C CRC32'
-          The specified memory region's checksum is CRC32.
-
-`QDisableRandomization:VALUE'
-     Some target operating systems will randomize the virtual address
-     space of the inferior process as a security feature, but provide a
-     feature to disable such randomization, e.g. to allow for a more
-     deterministic debugging experience.  On such systems, this packet
-     with a VALUE of 1 directs the target to disable address space
-     randomization for processes subsequently started via `vRun'
-     packets, while a packet with a VALUE of 0 tells the target to
-     enable address space randomization.
-
-     This packet is only available in extended mode (*note extended
-     mode::).
-
-     Reply:
-    `OK'
-          The request succeeded.
-
-    `E NN'
-          An error occurred.  NN are hex digits.
-
-    `'
-          An empty reply indicates that `QDisableRandomization' is not
-          supported by the stub.
-
-     This packet is not probed by default; the remote stub must request
-     it, by supplying an appropriate `qSupported' response (*note
-     qSupported::).  This should only be done on targets that actually
-     support disabling address space randomization.
-
-`qfThreadInfo'
-`qsThreadInfo'
-     Obtain a list of all active thread IDs from the target (OS).
-     Since there may be too many active threads to fit into one reply
-     packet, this query works iteratively: it may require more than one
-     query/reply sequence to obtain the entire list of threads.  The
-     first query of the sequence will be the `qfThreadInfo' query;
-     subsequent queries in the sequence will be the `qsThreadInfo'
-     query.
-
-     NOTE: This packet replaces the `qL' query (see below).
-
-     Reply:
-    `m THREAD-ID'
-          A single thread ID
-
-    `m THREAD-ID,THREAD-ID...'
-          a comma-separated list of thread IDs
-
-    `l'
-          (lower case letter `L') denotes end of list.
-
-     In response to each query, the target will reply with a list of
-     one or more thread IDs, separated by commas.  GDB will respond to
-     each reply with a request for more thread ids (using the `qs' form
-     of the query), until the target responds with `l' (lower-case ell,
-     for "last").  Refer to *note thread-id syntax::, for the format of
-     the THREAD-ID fields.
-
-`qGetTLSAddr:THREAD-ID,OFFSET,LM'
-     Fetch the address associated with thread local storage specified
-     by THREAD-ID, OFFSET, and LM.
-
-     THREAD-ID is the thread ID associated with the thread for which to
-     fetch the TLS address.  *Note thread-id syntax::.
-
-     OFFSET is the (big endian, hex encoded) offset associated with the
-     thread local variable.  (This offset is obtained from the debug
-     information associated with the variable.)
-
-     LM is the (big endian, hex encoded) OS/ABI-specific encoding of the
-     the load module associated with the thread local storage.  For
-     example, a GNU/Linux system will pass the link map address of the
-     shared object associated with the thread local storage under
-     consideration.  Other operating environments may choose to
-     represent the load module differently, so the precise meaning of
-     this parameter will vary.
-
-     Reply:
-    `XX...'
-          Hex encoded (big endian) bytes representing the address of
-          the thread local storage requested.
-
-    `E NN'
-          An error occurred.  NN are hex digits.
-
-    `'
-          An empty reply indicates that `qGetTLSAddr' is not supported
-          by the stub.
-
-`qGetTIBAddr:THREAD-ID'
-     Fetch address of the Windows OS specific Thread Information Block.
-
-     THREAD-ID is the thread ID associated with the thread.
-
-     Reply:
-    `XX...'
-          Hex encoded (big endian) bytes representing the linear
-          address of the thread information block.
-
-    `E NN'
-          An error occured.  This means that either the thread was not
-          found, or the address could not be retrieved.
-
-    `'
-          An empty reply indicates that `qGetTIBAddr' is not supported
-          by the stub.
-
-`qL STARTFLAG THREADCOUNT NEXTTHREAD'
-     Obtain thread information from RTOS.  Where: STARTFLAG (one hex
-     digit) is one to indicate the first query and zero to indicate a
-     subsequent query; THREADCOUNT (two hex digits) is the maximum
-     number of threads the response packet can contain; and NEXTTHREAD
-     (eight hex digits), for subsequent queries (STARTFLAG is zero), is
-     returned in the response as ARGTHREAD.
-
-     Don't use this packet; use the `qfThreadInfo' query instead (see
-     above).
-
-     Reply:
-    `qM COUNT DONE ARGTHREAD THREAD...'
-          Where: COUNT (two hex digits) is the number of threads being
-          returned; DONE (one hex digit) is zero to indicate more
-          threads and one indicates no further threads; ARGTHREADID
-          (eight hex digits) is NEXTTHREAD from the request packet;
-          THREAD...  is a sequence of thread IDs from the target.
-          THREADID (eight hex digits).  See
-          `remote.c:parse_threadlist_response()'.
-
-`qOffsets'
-     Get section offsets that the target used when relocating the
-     downloaded image.
-
-     Reply:
-    `Text=XXX;Data=YYY[;Bss=ZZZ]'
-          Relocate the `Text' section by XXX from its original address.
-          Relocate the `Data' section by YYY from its original address.
-          If the object file format provides segment information (e.g.
-          ELF `PT_LOAD' program headers), GDB will relocate entire
-          segments by the supplied offsets.
-
-          _Note: while a `Bss' offset may be included in the response,
-          GDB ignores this and instead applies the `Data' offset to the
-          `Bss' section._
-
-    `TextSeg=XXX[;DataSeg=YYY]'
-          Relocate the first segment of the object file, which
-          conventionally contains program code, to a starting address
-          of XXX.  If `DataSeg' is specified, relocate the second
-          segment, which conventionally contains modifiable data, to a
-          starting address of YYY.  GDB will report an error if the
-          object file does not contain segment information, or does not
-          contain at least as many segments as mentioned in the reply.
-          Extra segments are kept at fixed offsets relative to the last
-          relocated segment.
-
-`qP MODE THREAD-ID'
-     Returns information on THREAD-ID.  Where: MODE is a hex encoded 32
-     bit mode; THREAD-ID is a thread ID (*note thread-id syntax::).
-
-     Don't use this packet; use the `qThreadExtraInfo' query instead
-     (see below).
-
-     Reply: see `remote.c:remote_unpack_thread_info_response()'.
-
-`QNonStop:1'
-
-`QNonStop:0'
-     Enter non-stop (`QNonStop:1') or all-stop (`QNonStop:0') mode.
-     *Note Remote Non-Stop::, for more information.
-
-     Reply:
-    `OK'
-          The request succeeded.
-
-    `E NN'
-          An error occurred.  NN are hex digits.
-
-    `'
-          An empty reply indicates that `QNonStop' is not supported by
-          the stub.
-
-     This packet is not probed by default; the remote stub must request
-     it, by supplying an appropriate `qSupported' response (*note
-     qSupported::).  Use of this packet is controlled by the `set
-     non-stop' command; *note Non-Stop Mode::.
-
-`QPassSignals: SIGNAL [;SIGNAL]...'
-     Each listed SIGNAL should be passed directly to the inferior
-     process.  Signals are numbered identically to continue packets and
-     stop replies (*note Stop Reply Packets::).  Each SIGNAL list item
-     should be strictly greater than the previous item.  These signals
-     do not need to stop the inferior, or be reported to GDB.  All
-     other signals should be reported to GDB.  Multiple `QPassSignals'
-     packets do not combine; any earlier `QPassSignals' list is
-     completely replaced by the new list.  This packet improves
-     performance when using `handle SIGNAL nostop noprint pass'.
-
-     Reply:
-    `OK'
-          The request succeeded.
-
-    `E NN'
-          An error occurred.  NN are hex digits.
-
-    `'
-          An empty reply indicates that `QPassSignals' is not supported
-          by the stub.
-
-     Use of this packet is controlled by the `set remote pass-signals'
-     command (*note set remote pass-signals: Remote Configuration.).
-     This packet is not probed by default; the remote stub must request
-     it, by supplying an appropriate `qSupported' response (*note
-     qSupported::).
-
-`qRcmd,COMMAND'
-     COMMAND (hex encoded) is passed to the local interpreter for
-     execution.  Invalid commands should be reported using the output
-     string.  Before the final result packet, the target may also
-     respond with a number of intermediate `OOUTPUT' console output
-     packets.  _Implementors should note that providing access to a
-     stubs's interpreter may have security implications_.
-
-     Reply:
-    `OK'
-          A command response with no output.
-
-    `OUTPUT'
-          A command response with the hex encoded output string OUTPUT.
-
-    `E NN'
-          Indicate a badly formed request.
-
-    `'
-          An empty reply indicates that `qRcmd' is not recognized.
-
-     (Note that the `qRcmd' packet's name is separated from the command
-     by a `,', not a `:', contrary to the naming conventions above.
-     Please don't use this packet as a model for new packets.)
-
-`qSearch:memory:ADDRESS;LENGTH;SEARCH-PATTERN'
-     Search LENGTH bytes at ADDRESS for SEARCH-PATTERN.  ADDRESS and
-     LENGTH are encoded in hex.  SEARCH-PATTERN is a sequence of bytes,
-     hex encoded.
-
-     Reply:
-    `0'
-          The pattern was not found.
-
-    `1,address'
-          The pattern was found at ADDRESS.
-
-    `E NN'
-          A badly formed request or an error was encountered while
-          searching memory.
-
-    `'
-          An empty reply indicates that `qSearch:memory' is not
-          recognized.
-
-`QStartNoAckMode'
-     Request that the remote stub disable the normal `+'/`-' protocol
-     acknowledgments (*note Packet Acknowledgment::).
-
-     Reply:
-    `OK'
-          The stub has switched to no-acknowledgment mode.  GDB
-          acknowledges this reponse, but neither the stub nor GDB shall
-          send or expect further `+'/`-' acknowledgments in the current
-          connection.
-
-    `'
-          An empty reply indicates that the stub does not support
-          no-acknowledgment mode.
-
-`qSupported [:GDBFEATURE [;GDBFEATURE]... ]'
-     Tell the remote stub about features supported by GDB, and query
-     the stub for features it supports.  This packet allows GDB and the
-     remote stub to take advantage of each others' features.
-     `qSupported' also consolidates multiple feature probes at startup,
-     to improve GDB performance--a single larger packet performs better
-     than multiple smaller probe packets on high-latency links.  Some
-     features may enable behavior which must not be on by default, e.g.
-     because it would confuse older clients or stubs.  Other features
-     may describe packets which could be automatically probed for, but
-     are not.  These features must be reported before GDB will use
-     them.  This "default unsupported" behavior is not appropriate for
-     all packets, but it helps to keep the initial connection time
-     under control with new versions of GDB which support increasing
-     numbers of packets.
-
-     Reply:
-    `STUBFEATURE [;STUBFEATURE]...'
-          The stub supports or does not support each returned
-          STUBFEATURE, depending on the form of each STUBFEATURE (see
-          below for the possible forms).
-
-    `'
-          An empty reply indicates that `qSupported' is not recognized,
-          or that no features needed to be reported to GDB.
-
-     The allowed forms for each feature (either a GDBFEATURE in the
-     `qSupported' packet, or a STUBFEATURE in the response) are:
-
-    `NAME=VALUE'
-          The remote protocol feature NAME is supported, and associated
-          with the specified VALUE.  The format of VALUE depends on the
-          feature, but it must not include a semicolon.
-
-    `NAME+'
-          The remote protocol feature NAME is supported, and does not
-          need an associated value.
-
-    `NAME-'
-          The remote protocol feature NAME is not supported.
-
-    `NAME?'
-          The remote protocol feature NAME may be supported, and GDB
-          should auto-detect support in some other way when it is
-          needed.  This form will not be used for GDBFEATURE
-          notifications, but may be used for STUBFEATURE responses.
-
-     Whenever the stub receives a `qSupported' request, the supplied
-     set of GDB features should override any previous request.  This
-     allows GDB to put the stub in a known state, even if the stub had
-     previously been communicating with a different version of GDB.
-
-     The following values of GDBFEATURE (for the packet sent by GDB)
-     are defined:
-
-    `multiprocess'
-          This feature indicates whether GDB supports multiprocess
-          extensions to the remote protocol.  GDB does not use such
-          extensions unless the stub also reports that it supports them
-          by including `multiprocess+' in its `qSupported' reply.
-          *Note multiprocess extensions::, for details.
-
-    `xmlRegisters'
-          This feature indicates that GDB supports the XML target
-          description.  If the stub sees `xmlRegisters=' with target
-          specific strings separated by a comma, it will report register
-          description.
-
-    `qRelocInsn'
-          This feature indicates whether GDB supports the `qRelocInsn'
-          packet (*note Relocate instruction reply packet: Tracepoint
-          Packets.).
-
-     Stubs should ignore any unknown values for GDBFEATURE.  Any GDB
-     which sends a `qSupported' packet supports receiving packets of
-     unlimited length (earlier versions of GDB may reject overly long
-     responses).  Additional values for GDBFEATURE may be defined in
-     the future to let the stub take advantage of new features in GDB,
-     e.g. incompatible improvements in the remote protocol--the
-     `multiprocess' feature is an example of such a feature.  The
-     stub's reply should be independent of the GDBFEATURE entries sent
-     by GDB; first GDB describes all the features it supports, and then
-     the stub replies with all the features it supports.
-
-     Similarly, GDB will silently ignore unrecognized stub feature
-     responses, as long as each response uses one of the standard forms.
-
-     Some features are flags.  A stub which supports a flag feature
-     should respond with a `+' form response.  Other features require
-     values, and the stub should respond with an `=' form response.
-
-     Each feature has a default value, which GDB will use if
-     `qSupported' is not available or if the feature is not mentioned
-     in the `qSupported' response.  The default values are fixed; a
-     stub is free to omit any feature responses that match the defaults.
-
-     Not all features can be probed, but for those which can, the
-     probing mechanism is useful: in some cases, a stub's internal
-     architecture may not allow the protocol layer to know some
-     information about the underlying target in advance.  This is
-     especially common in stubs which may be configured for multiple
-     targets.
-
-     These are the currently defined stub features and their properties:
-
-     Feature Name            Value         Default  Probe Allowed
-                             Required               
-     `PacketSize'            Yes           `-'      No
-     `qXfer:auxv:read'       No            `-'      Yes
-     `qXfer:features:read'   No            `-'      Yes
-     `qXfer:libraries:read'  No            `-'      Yes
-     `qXfer:memory-map:read' No            `-'      Yes
-     `qXfer:sdata:read'      No            `-'      Yes
-     `qXfer:spu:read'        No            `-'      Yes
-     `qXfer:spu:write'       No            `-'      Yes
-     `qXfer:siginfo:read'    No            `-'      Yes
-     `qXfer:siginfo:write'   No            `-'      Yes
-     `qXfer:threads:read'    No            `-'      Yes
-     `qXfer:traceframe-info:read'No            `-'      Yes
-     `QNonStop'              No            `-'      Yes
-     `QPassSignals'          No            `-'      Yes
-     `QStartNoAckMode'       No            `-'      Yes
-     `multiprocess'          No            `-'      No
-     `ConditionalTracepoints'No            `-'      No
-     `ReverseContinue'       No            `-'      No
-     `ReverseStep'           No            `-'      No
-     `TracepointSource'      No            `-'      No
-     `QAllow'                No            `-'      No
-     `QDisableRandomization' No            `-'      No
-
-     These are the currently defined stub features, in more detail:
-
-    `PacketSize=BYTES'
-          The remote stub can accept packets up to at least BYTES in
-          length.  GDB will send packets up to this size for bulk
-          transfers, and will never send larger packets.  This is a
-          limit on the data characters in the packet, including the
-          frame and checksum.  There is no trailing NUL byte in a
-          remote protocol packet; if the stub stores packets in a
-          NUL-terminated format, it should allow an extra byte in its
-          buffer for the NUL.  If this stub feature is not supported,
-          GDB guesses based on the size of the `g' packet response.
-
-    `qXfer:auxv:read'
-          The remote stub understands the `qXfer:auxv:read' packet
-          (*note qXfer auxiliary vector read::).
-
-    `qXfer:features:read'
-          The remote stub understands the `qXfer:features:read' packet
-          (*note qXfer target description read::).
-
-    `qXfer:libraries:read'
-          The remote stub understands the `qXfer:libraries:read' packet
-          (*note qXfer library list read::).
-
-    `qXfer:memory-map:read'
-          The remote stub understands the `qXfer:memory-map:read' packet
-          (*note qXfer memory map read::).
-
-    `qXfer:sdata:read'
-          The remote stub understands the `qXfer:sdata:read' packet
-          (*note qXfer sdata read::).
-
-    `qXfer:spu:read'
-          The remote stub understands the `qXfer:spu:read' packet
-          (*note qXfer spu read::).
-
-    `qXfer:spu:write'
-          The remote stub understands the `qXfer:spu:write' packet
-          (*note qXfer spu write::).
-
-    `qXfer:siginfo:read'
-          The remote stub understands the `qXfer:siginfo:read' packet
-          (*note qXfer siginfo read::).
-
-    `qXfer:siginfo:write'
-          The remote stub understands the `qXfer:siginfo:write' packet
-          (*note qXfer siginfo write::).
-
-    `qXfer:threads:read'
-          The remote stub understands the `qXfer:threads:read' packet
-          (*note qXfer threads read::).
-
-    `qXfer:traceframe-info:read'
-          The remote stub understands the `qXfer:traceframe-info:read'
-          packet (*note qXfer traceframe info read::).
-
-    `QNonStop'
-          The remote stub understands the `QNonStop' packet (*note
-          QNonStop::).
-
-    `QPassSignals'
-          The remote stub understands the `QPassSignals' packet (*note
-          QPassSignals::).
-
-    `QStartNoAckMode'
-          The remote stub understands the `QStartNoAckMode' packet and
-          prefers to operate in no-acknowledgment mode.  *Note Packet
-          Acknowledgment::.
-
-    `multiprocess'
-          The remote stub understands the multiprocess extensions to
-          the remote protocol syntax.  The multiprocess extensions
-          affect the syntax of thread IDs in both packets and replies
-          (*note thread-id syntax::), and add process IDs to the `D'
-          packet and `W' and `X' replies.  Note that reporting this
-          feature indicates support for the syntactic extensions only,
-          not that the stub necessarily supports debugging of more than
-          one process at a time.  The stub must not use multiprocess
-          extensions in packet replies unless GDB has also indicated it
-          supports them in its `qSupported' request.
-
-    `qXfer:osdata:read'
-          The remote stub understands the `qXfer:osdata:read' packet
-          ((*note qXfer osdata read::).
-
-    `ConditionalTracepoints'
-          The remote stub accepts and implements conditional
-          expressions defined for tracepoints (*note Tracepoint
-          Conditions::).
-
-    `ReverseContinue'
-          The remote stub accepts and implements the reverse continue
-          packet (*note bc::).
-
-    `ReverseStep'
-          The remote stub accepts and implements the reverse step packet
-          (*note bs::).
-
-    `TracepointSource'
-          The remote stub understands the `QTDPsrc' packet that supplies
-          the source form of tracepoint definitions.
-
-    `QAllow'
-          The remote stub understands the `QAllow' packet.
-
-    `QDisableRandomization'
-          The remote stub understands the `QDisableRandomization'
-          packet.
-
-    `StaticTracepoint'
-          The remote stub supports static tracepoints.
-
-
-`qSymbol::'
-     Notify the target that GDB is prepared to serve symbol lookup
-     requests.  Accept requests from the target for the values of
-     symbols.
-
-     Reply:
-    `OK'
-          The target does not need to look up any (more) symbols.
-
-    `qSymbol:SYM_NAME'
-          The target requests the value of symbol SYM_NAME (hex
-          encoded).  GDB may provide the value by using the
-          `qSymbol:SYM_VALUE:SYM_NAME' message, described below.
-
-`qSymbol:SYM_VALUE:SYM_NAME'
-     Set the value of SYM_NAME to SYM_VALUE.
-
-     SYM_NAME (hex encoded) is the name of a symbol whose value the
-     target has previously requested.
-
-     SYM_VALUE (hex) is the value for symbol SYM_NAME.  If GDB cannot
-     supply a value for SYM_NAME, then this field will be empty.
-
-     Reply:
-    `OK'
-          The target does not need to look up any (more) symbols.
-
-    `qSymbol:SYM_NAME'
-          The target requests the value of a new symbol SYM_NAME (hex
-          encoded).  GDB will continue to supply the values of symbols
-          (if available), until the target ceases to request them.
-
-`qTBuffer'
-
-`QTBuffer'
-
-`QTDisconnected'
-`QTDP'
-`QTDPsrc'
-`QTDV'
-`qTfP'
-`qTfV'
-`QTFrame'
-     *Note Tracepoint Packets::.
-
-`qThreadExtraInfo,THREAD-ID'
-     Obtain a printable string description of a thread's attributes from
-     the target OS.  THREAD-ID is a thread ID; see *note thread-id
-     syntax::.  This string may contain anything that the target OS
-     thinks is interesting for GDB to tell the user about the thread.
-     The string is displayed in GDB's `info threads' display.  Some
-     examples of possible thread extra info strings are `Runnable', or
-     `Blocked on Mutex'.
-
-     Reply:
-    `XX...'
-          Where `XX...' is a hex encoding of ASCII data, comprising the
-          printable string containing the extra information about the
-          thread's attributes.
-
-     (Note that the `qThreadExtraInfo' packet's name is separated from
-     the command by a `,', not a `:', contrary to the naming
-     conventions above.  Please don't use this packet as a model for new
-     packets.)
-
-`QTSave'
-
-`qTsP'
-
-`qTsV'
-`QTStart'
-`QTStop'
-`QTinit'
-`QTro'
-`qTStatus'
-`qTV'
-`qTfSTM'
-`qTsSTM'
-`qTSTMat'
-     *Note Tracepoint Packets::.
-
-`qXfer:OBJECT:read:ANNEX:OFFSET,LENGTH'
-     Read uninterpreted bytes from the target's special data area
-     identified by the keyword OBJECT.  Request LENGTH bytes starting
-     at OFFSET bytes into the data.  The content and encoding of ANNEX
-     is specific to OBJECT; it can supply additional details about what
-     data to access.
-
-     Here are the specific requests of this form defined so far.  All
-     `qXfer:OBJECT:read:...' requests use the same reply formats,
-     listed below.
-
-    `qXfer:auxv:read::OFFSET,LENGTH'
-          Access the target's "auxiliary vector".  *Note auxiliary
-          vector: OS Information.  Note ANNEX must be empty.
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:features:read:ANNEX:OFFSET,LENGTH'
-          Access the "target description".  *Note Target
-          Descriptions::.  The annex specifies which XML document to
-          access.  The main description is always loaded from the
-          `target.xml' annex.
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:libraries:read:ANNEX:OFFSET,LENGTH'
-          Access the target's list of loaded libraries.  *Note Library
-          List Format::.  The annex part of the generic `qXfer' packet
-          must be empty (*note qXfer read::).
-
-          Targets which maintain a list of libraries in the program's
-          memory do not need to implement this packet; it is designed
-          for platforms where the operating system manages the list of
-          loaded libraries.
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:memory-map:read::OFFSET,LENGTH'
-          Access the target's "memory-map".  *Note Memory Map Format::.
-          The annex part of the generic `qXfer' packet must be empty
-          (*note qXfer read::).
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:sdata:read::OFFSET,LENGTH'
-          Read contents of the extra collected static tracepoint marker
-          information.  The annex part of the generic `qXfer' packet
-          must be empty (*note qXfer read::).  *Note Tracepoint Action
-          Lists: Tracepoint Actions.
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:siginfo:read::OFFSET,LENGTH'
-          Read contents of the extra signal information on the target
-          system.  The annex part of the generic `qXfer' packet must be
-          empty (*note qXfer read::).
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:spu:read:ANNEX:OFFSET,LENGTH'
-          Read contents of an `spufs' file on the target system.  The
-          annex specifies which file to read; it must be of the form
-          `ID/NAME', where ID specifies an SPU context ID in the target
-          process, and NAME identifes the `spufs' file in that context
-          to be accessed.
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:threads:read::OFFSET,LENGTH'
-          Access the list of threads on target.  *Note Thread List
-          Format::.  The annex part of the generic `qXfer' packet must
-          be empty (*note qXfer read::).
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:traceframe-info:read::OFFSET,LENGTH'
-          Return a description of the current traceframe's contents.
-          *Note Traceframe Info Format::.  The annex part of the generic
-          `qXfer' packet must be empty (*note qXfer read::).
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:osdata:read::OFFSET,LENGTH'
-          Access the target's "operating system information".  *Note
-          Operating System Information::.
-
-
-     Reply:
-    `m DATA'
-          Data DATA (*note Binary Data::) has been read from the
-          target.  There may be more data at a higher address (although
-          it is permitted to return `m' even for the last valid block
-          of data, as long as at least one byte of data was read).
-          DATA may have fewer bytes than the LENGTH in the request.
-
-    `l DATA'
-          Data DATA (*note Binary Data::) has been read from the target.
-          There is no more data to be read.  DATA may have fewer bytes
-          than the LENGTH in the request.
-
-    `l'
-          The OFFSET in the request is at the end of the data.  There
-          is no more data to be read.
-
-    `E00'
-          The request was malformed, or ANNEX was invalid.
-
-    `E NN'
-          The offset was invalid, or there was an error encountered
-          reading the data.  NN is a hex-encoded `errno' value.
-
-    `'
-          An empty reply indicates the OBJECT string was not recognized
-          by the stub, or that the object does not support reading.
-
-`qXfer:OBJECT:write:ANNEX:OFFSET:DATA...'
-     Write uninterpreted bytes into the target's special data area
-     identified by the keyword OBJECT, starting at OFFSET bytes into
-     the data.  DATA... is the binary-encoded data (*note Binary
-     Data::) to be written.  The content and encoding of ANNEX is
-     specific to OBJECT; it can supply additional details about what
-     data to access.
-
-     Here are the specific requests of this form defined so far.  All
-     `qXfer:OBJECT:write:...' requests use the same reply formats,
-     listed below.
-
-    `qXfer:siginfo:write::OFFSET:DATA...'
-          Write DATA to the extra signal information on the target
-          system.  The annex part of the generic `qXfer' packet must be
-          empty (*note qXfer write::).
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-    `qXfer:spu:write:ANNEX:OFFSET:DATA...'
-          Write DATA to an `spufs' file on the target system.  The
-          annex specifies which file to write; it must be of the form
-          `ID/NAME', where ID specifies an SPU context ID in the target
-          process, and NAME identifes the `spufs' file in that context
-          to be accessed.
-
-          This packet is not probed by default; the remote stub must
-          request it, by supplying an appropriate `qSupported' response
-          (*note qSupported::).
-
-     Reply:
-    `NN'
-          NN (hex encoded) is the number of bytes written.  This may be
-          fewer bytes than supplied in the request.
-
-    `E00'
-          The request was malformed, or ANNEX was invalid.
-
-    `E NN'
-          The offset was invalid, or there was an error encountered
-          writing the data.  NN is a hex-encoded `errno' value.
-
-    `'
-          An empty reply indicates the OBJECT string was not recognized
-          by the stub, or that the object does not support writing.
-
-`qXfer:OBJECT:OPERATION:...'
-     Requests of this form may be added in the future.  When a stub does
-     not recognize the OBJECT keyword, or its support for OBJECT does
-     not recognize the OPERATION keyword, the stub must respond with an
-     empty packet.
-
-`qAttached:PID'
-     Return an indication of whether the remote server attached to an
-     existing process or created a new process.  When the multiprocess
-     protocol extensions are supported (*note multiprocess
-     extensions::), PID is an integer in hexadecimal format identifying
-     the target process.  Otherwise, GDB will omit the PID field and
-     the query packet will be simplified as `qAttached'.
-
-     This query is used, for example, to know whether the remote process
-     should be detached or killed when a GDB session is ended with the
-     `quit' command.
-
-     Reply:
-    `1'
-          The remote server attached to an existing process.
-
-    `0'
-          The remote server created a new process.
-
-    `E NN'
-          A badly formed request or an error was encountered.
-
-
-   ---------- Footnotes ----------
-
-   (1) The `qP' and `qL' packets predate these conventions, and have
-arguments without any terminator for the packet name; we suspect they
-are in widespread use in places that are difficult to upgrade.  The
-`qC' packet has no arguments, but some existing stubs (e.g. RedBoot)
-are known to not check for the end of the packet.
-
-
-File: gdb.info,  Node: Architecture-Specific Protocol Details,  Next: Tracepoint Packets,  Prev: General Query Packets,  Up: Remote Protocol
-
-E.5 Architecture-Specific Protocol Details
-==========================================
-
-This section describes how the remote protocol is applied to specific
-target architectures.  Also see *note Standard Target Features::, for
-details of XML target descriptions for each architecture.
-
-E.5.1 ARM
----------
-
-E.5.1.1 Breakpoint Kinds
-........................
-
-These breakpoint kinds are defined for the `Z0' and `Z1' packets.
-
-2
-     16-bit Thumb mode breakpoint.
-
-3
-     32-bit Thumb mode (Thumb-2) breakpoint.
-
-4
-     32-bit ARM mode breakpoint.
-
-
-E.5.2 MIPS
-----------
-
-E.5.2.1 Register Packet Format
-..............................
-
-The following `g'/`G' packets have previously been defined.  In the
-below, some thirty-two bit registers are transferred as sixty-four
-bits.  Those registers should be zero/sign extended (which?)  to fill
-the space allocated.  Register bytes are transferred in target byte
-order.  The two nibbles within a register byte are transferred
-most-significant - least-significant.
-
-MIPS32
-     All registers are transferred as thirty-two bit quantities in the
-     order: 32 general-purpose; sr; lo; hi; bad; cause; pc; 32
-     floating-point registers; fsr; fir; fp.
-
-MIPS64
-     All registers are transferred as sixty-four bit quantities
-     (including thirty-two bit registers such as `sr').  The ordering
-     is the same as `MIPS32'.
-
-
-
-File: gdb.info,  Node: Tracepoint Packets,  Next: Host I/O Packets,  Prev: Architecture-Specific Protocol Details,  Up: Remote Protocol
-
-E.6 Tracepoint Packets
-======================
-
-Here we describe the packets GDB uses to implement tracepoints (*note
-Tracepoints::).
-
-`QTDP:N:ADDR:ENA:STEP:PASS[:FFLEN][:XLEN,BYTES][-]'
-     Create a new tracepoint, number N, at ADDR.  If ENA is `E', then
-     the tracepoint is enabled; if it is `D', then the tracepoint is
-     disabled.  STEP is the tracepoint's step count, and PASS is its
-     pass count.  If an `F' is present, then the tracepoint is to be a
-     fast tracepoint, and the FLEN is the number of bytes that the
-     target should copy elsewhere to make room for the tracepoint.  If
-     an `X' is present, it introduces a tracepoint condition, which
-     consists of a hexadecimal length, followed by a comma and
-     hex-encoded bytes, in a manner similar to action encodings as
-     described below.  If the trailing `-' is present, further `QTDP'
-     packets will follow to specify this tracepoint's actions.
-
-     Replies:
-    `OK'
-          The packet was understood and carried out.
-
-    `qRelocInsn'
-          *Note Relocate instruction reply packet: Tracepoint Packets.
-
-    `'
-          The packet was not recognized.
-
-`QTDP:-N:ADDR:[S]ACTION...[-]'
-     Define actions to be taken when a tracepoint is hit.  N and ADDR
-     must be the same as in the initial `QTDP' packet for this
-     tracepoint.  This packet may only be sent immediately after
-     another `QTDP' packet that ended with a `-'.  If the trailing `-'
-     is present, further `QTDP' packets will follow, specifying more
-     actions for this tracepoint.
-
-     In the series of action packets for a given tracepoint, at most one
-     can have an `S' before its first ACTION.  If such a packet is
-     sent, it and the following packets define "while-stepping"
-     actions.  Any prior packets define ordinary actions -- that is,
-     those taken when the tracepoint is first hit.  If no action packet
-     has an `S', then all the packets in the series specify ordinary
-     tracepoint actions.
-
-     The `ACTION...' portion of the packet is a series of actions,
-     concatenated without separators.  Each action has one of the
-     following forms:
-
-    `R MASK'
-          Collect the registers whose bits are set in MASK.  MASK is a
-          hexadecimal number whose I'th bit is set if register number I
-          should be collected.  (The least significant bit is numbered
-          zero.)  Note that MASK may be any number of digits long; it
-          may not fit in a 32-bit word.
-
-    `M BASEREG,OFFSET,LEN'
-          Collect LEN bytes of memory starting at the address in
-          register number BASEREG, plus OFFSET.  If BASEREG is `-1',
-          then the range has a fixed address: OFFSET is the address of
-          the lowest byte to collect.  The BASEREG, OFFSET, and LEN
-          parameters are all unsigned hexadecimal values (the `-1'
-          value for BASEREG is a special case).
-
-    `X LEN,EXPR'
-          Evaluate EXPR, whose length is LEN, and collect memory as it
-          directs.  EXPR is an agent expression, as described in *note
-          Agent Expressions::.  Each byte of the expression is encoded
-          as a two-digit hex number in the packet; LEN is the number of
-          bytes in the expression (and thus one-half the number of hex
-          digits in the packet).
-
-
-     Any number of actions may be packed together in a single `QTDP'
-     packet, as long as the packet does not exceed the maximum packet
-     length (400 bytes, for many stubs).  There may be only one `R'
-     action per tracepoint, and it must precede any `M' or `X' actions.
-     Any registers referred to by `M' and `X' actions must be collected
-     by a preceding `R' action.  (The "while-stepping" actions are
-     treated as if they were attached to a separate tracepoint, as far
-     as these restrictions are concerned.)
-
-     Replies:
-    `OK'
-          The packet was understood and carried out.
-
-    `qRelocInsn'
-          *Note Relocate instruction reply packet: Tracepoint Packets.
-
-    `'
-          The packet was not recognized.
-
-`QTDPsrc:N:ADDR:TYPE:START:SLEN:BYTES'
-     Specify a source string of tracepoint N at address ADDR.  This is
-     useful to get accurate reproduction of the tracepoints originally
-     downloaded at the beginning of the trace run.  TYPE is the name of
-     the tracepoint part, such as `cond' for the tracepoint's
-     conditional expression (see below for a list of types), while
-     BYTES is the string, encoded in hexadecimal.
-
-     START is the offset of the BYTES within the overall source string,
-     while SLEN is the total length of the source string.  This is
-     intended for handling source strings that are longer than will fit
-     in a single packet.
-
-     The available string types are `at' for the location, `cond' for
-     the conditional, and `cmd' for an action command.  GDB sends a
-     separate packet for each command in the action list, in the same
-     order in which the commands are stored in the list.
-
-     The target does not need to do anything with source strings except
-     report them back as part of the replies to the `qTfP'/`qTsP' query
-     packets.
-
-     Although this packet is optional, and GDB will only send it if the
-     target replies with `TracepointSource' *Note General Query
-     Packets::, it makes both disconnected tracing and trace files much
-     easier to use.  Otherwise the user must be careful that the
-     tracepoints in effect while looking at trace frames are identical
-     to the ones in effect during the trace run; even a small
-     discrepancy could cause `tdump' not to work, or a particular trace
-     frame not be found.
-
-`QTDV:N:VALUE'
-     Create a new trace state variable, number N, with an initial value
-     of VALUE, which is a 64-bit signed integer.  Both N and VALUE are
-     encoded as hexadecimal values. GDB has the option of not using
-     this packet for initial values of zero; the target should simply
-     create the trace state variables as they are mentioned in
-     expressions.
-
-`QTFrame:N'
-     Select the N'th tracepoint frame from the buffer, and use the
-     register and memory contents recorded there to answer subsequent
-     request packets from GDB.
-
-     A successful reply from the stub indicates that the stub has found
-     the requested frame.  The response is a series of parts,
-     concatenated without separators, describing the frame we selected.
-     Each part has one of the following forms:
-
-    `F F'
-          The selected frame is number N in the trace frame buffer; F
-          is a hexadecimal number.  If F is `-1', then there was no
-          frame matching the criteria in the request packet.
-
-    `T T'
-          The selected trace frame records a hit of tracepoint number T;
-          T is a hexadecimal number.
-
-
-`QTFrame:pc:ADDR'
-     Like `QTFrame:N', but select the first tracepoint frame after the
-     currently selected frame whose PC is ADDR; ADDR is a hexadecimal
-     number.
-
-`QTFrame:tdp:T'
-     Like `QTFrame:N', but select the first tracepoint frame after the
-     currently selected frame that is a hit of tracepoint T; T is a
-     hexadecimal number.
-
-`QTFrame:range:START:END'
-     Like `QTFrame:N', but select the first tracepoint frame after the
-     currently selected frame whose PC is between START (inclusive) and
-     END (inclusive); START and END are hexadecimal numbers.
-
-`QTFrame:outside:START:END'
-     Like `QTFrame:range:START:END', but select the first frame
-     _outside_ the given range of addresses (exclusive).
-
-`QTStart'
-     Begin the tracepoint experiment.  Begin collecting data from
-     tracepoint hits in the trace frame buffer.  This packet supports
-     the `qRelocInsn' reply (*note Relocate instruction reply packet:
-     Tracepoint Packets.).
-
-`QTStop'
-     End the tracepoint experiment.  Stop collecting trace frames.
-
-`QTinit'
-     Clear the table of tracepoints, and empty the trace frame buffer.
-
-`QTro:START1,END1:START2,END2:...'
-     Establish the given ranges of memory as "transparent".  The stub
-     will answer requests for these ranges from memory's current
-     contents, if they were not collected as part of the tracepoint hit.
-
-     GDB uses this to mark read-only regions of memory, like those
-     containing program code.  Since these areas never change, they
-     should still have the same contents they did when the tracepoint
-     was hit, so there's no reason for the stub to refuse to provide
-     their contents.
-
-`QTDisconnected:VALUE'
-     Set the choice to what to do with the tracing run when GDB
-     disconnects from the target.  A VALUE of 1 directs the target to
-     continue the tracing run, while 0 tells the target to stop tracing
-     if GDB is no longer in the picture.
-
-`qTStatus'
-     Ask the stub if there is a trace experiment running right now.
-
-     The reply has the form:
-
-    `TRUNNING[;FIELD]...'
-          RUNNING is a single digit `1' if the trace is presently
-          running, or `0' if not.  It is followed by semicolon-separated
-          optional fields that an agent may use to report additional
-          status.
-
-
-     If the trace is not running, the agent may report any of several
-     explanations as one of the optional fields:
-
-    `tnotrun:0'
-          No trace has been run yet.
-
-    `tstop:0'
-          The trace was stopped by a user-originated stop command.
-
-    `tfull:0'
-          The trace stopped because the trace buffer filled up.
-
-    `tdisconnected:0'
-          The trace stopped because GDB disconnected from the target.
-
-    `tpasscount:TPNUM'
-          The trace stopped because tracepoint TPNUM exceeded its pass
-          count.
-
-    `terror:TEXT:TPNUM'
-          The trace stopped because tracepoint TPNUM had an error.  The
-          string TEXT is available to describe the nature of the error
-          (for instance, a divide by zero in the condition expression).
-          TEXT is hex encoded.
-
-    `tunknown:0'
-          The trace stopped for some other reason.
-
-
-     Additional optional fields supply statistical and other
-     information.  Although not required, they are extremely useful for
-     users monitoring the progress of a trace run.  If a trace has
-     stopped, and these numbers are reported, they must reflect the
-     state of the just-stopped trace.
-
-    `tframes:N'
-          The number of trace frames in the buffer.
-
-    `tcreated:N'
-          The total number of trace frames created during the run. This
-          may be larger than the trace frame count, if the buffer is
-          circular.
-
-    `tsize:N'
-          The total size of the trace buffer, in bytes.
-
-    `tfree:N'
-          The number of bytes still unused in the buffer.
-
-    `circular:N'
-          The value of the circular trace buffer flag.  `1' means that
-          the trace buffer is circular and old trace frames will be
-          discarded if necessary to make room, `0' means that the trace
-          buffer is linear and may fill up.
-
-    `disconn:N'
-          The value of the disconnected tracing flag.  `1' means that
-          tracing will continue after GDB disconnects, `0' means that
-          the trace run will stop.
-
-
-`qTV:VAR'
-     Ask the stub for the value of the trace state variable number VAR.
-
-     Replies:
-    `VVALUE'
-          The value of the variable is VALUE.  This will be the current
-          value of the variable if the user is examining a running
-          target, or a saved value if the variable was collected in the
-          trace frame that the user is looking at.  Note that multiple
-          requests may result in different reply values, such as when
-          requesting values while the program is running.
-
-    `U'
-          The value of the variable is unknown.  This would occur, for
-          example, if the user is examining a trace frame in which the
-          requested variable was not collected.
-
-`qTfP'
-`qTsP'
-     These packets request data about tracepoints that are being used by
-     the target.  GDB sends `qTfP' to get the first piece of data, and
-     multiple `qTsP' to get additional pieces.  Replies to these
-     packets generally take the form of the `QTDP' packets that define
-     tracepoints. (FIXME add detailed syntax)
-
-`qTfV'
-`qTsV'
-     These packets request data about trace state variables that are on
-     the target.  GDB sends `qTfV' to get the first vari of data, and
-     multiple `qTsV' to get additional variables.  Replies to these
-     packets follow the syntax of the `QTDV' packets that define trace
-     state variables.
-
-`qTfSTM'
-`qTsSTM'
-     These packets request data about static tracepoint markers that
-     exist in the target program.  GDB sends `qTfSTM' to get the first
-     piece of data, and multiple `qTsSTM' to get additional pieces.
-     Replies to these packets take the following form:
-
-     Reply:
-    `m ADDRESS:ID:EXTRA'
-          A single marker
-
-    `m ADDRESS:ID:EXTRA,ADDRESS:ID:EXTRA...'
-          a comma-separated list of markers
-
-    `l'
-          (lower case letter `L') denotes end of list.
-
-    `E NN'
-          An error occurred.  NN are hex digits.
-
-    `'
-          An empty reply indicates that the request is not supported by
-          the stub.
-
-     ADDRESS is encoded in hex.  ID and EXTRA are strings encoded in
-     hex.
-
-     In response to each query, the target will reply with a list of
-     one or more markers, separated by commas.  GDB will respond to each
-     reply with a request for more markers (using the `qs' form of the
-     query), until the target responds with `l' (lower-case ell, for
-     "last").
-
-`qTSTMat:ADDRESS'
-     This packets requests data about static tracepoint markers in the
-     target program at ADDRESS.  Replies to this packet follow the
-     syntax of the `qTfSTM' and `qTsSTM' packets that list static
-     tracepoint markers.
-
-`QTSave:FILENAME'
-     This packet directs the target to save trace data to the file name
-     FILENAME in the target's filesystem.  FILENAME is encoded as a hex
-     string; the interpretation of the file name (relative vs absolute,
-     wild cards, etc) is up to the target.
-
-`qTBuffer:OFFSET,LEN'
-     Return up to LEN bytes of the current contents of trace buffer,
-     starting at OFFSET.  The trace buffer is treated as if it were a
-     contiguous collection of traceframes, as per the trace file format.
-     The reply consists as many hex-encoded bytes as the target can
-     deliver in a packet; it is not an error to return fewer than were
-     asked for.  A reply consisting of just `l' indicates that no bytes
-     are available.
-
-`QTBuffer:circular:VALUE'
-     This packet directs the target to use a circular trace buffer if
-     VALUE is 1, or a linear buffer if the value is 0.
-
-
-E.6.1 Relocate instruction reply packet
----------------------------------------
-
-When installing fast tracepoints in memory, the target may need to
-relocate the instruction currently at the tracepoint address to a
-different address in memory.  For most instructions, a simple copy is
-enough, but, for example, call instructions that implicitly push the
-return address on the stack, and relative branches or other PC-relative
-instructions require offset adjustment, so that the effect of executing
-the instruction at a different address is the same as if it had
-executed in the original location.
-
-   In response to several of the tracepoint packets, the target may also
-respond with a number of intermediate `qRelocInsn' request packets
-before the final result packet, to have GDB handle this relocation
-operation.  If a packet supports this mechanism, its documentation will
-explicitly say so.  See for example the above descriptions for the
-`QTStart' and `QTDP' packets.  The format of the request is:
-
-`qRelocInsn:FROM;TO'
-     This requests GDB to copy instruction at address FROM to address
-     TO, possibly adjusted so that executing the instruction at TO has
-     the same effect as executing it at FROM.  GDB writes the adjusted
-     instruction to target memory starting at TO.
-
-   Replies:
-`qRelocInsn:ADJUSTED_SIZE'
-     Informs the stub the relocation is complete.  ADJUSTED_SIZE is the
-     length in bytes of resulting relocated instruction sequence.
-
-`E NN'
-     A badly formed request was detected, or an error was encountered
-     while relocating the instruction.
-
-
-File: gdb.info,  Node: Host I/O Packets,  Next: Interrupts,  Prev: Tracepoint Packets,  Up: Remote Protocol
-
-E.7 Host I/O Packets
-====================
-
-The "Host I/O" packets allow GDB to perform I/O operations on the far
-side of a remote link.  For example, Host I/O is used to upload and
-download files to a remote target with its own filesystem.  Host I/O
-uses the same constant values and data structure layout as the
-target-initiated File-I/O protocol.  However, the Host I/O packets are
-structured differently.  The target-initiated protocol relies on target
-memory to store parameters and buffers.  Host I/O requests are
-initiated by GDB, and the target's memory is not involved.  *Note
-File-I/O Remote Protocol Extension::, for more details on the
-target-initiated protocol.
-
-   The Host I/O request packets all encode a single operation along with
-its arguments.  They have this format:
-
-`vFile:OPERATION: PARAMETER...'
-     OPERATION is the name of the particular request; the target should
-     compare the entire packet name up to the second colon when checking
-     for a supported operation.  The format of PARAMETER depends on the
-     operation.  Numbers are always passed in hexadecimal.  Negative
-     numbers have an explicit minus sign (i.e. two's complement is not
-     used).  Strings (e.g. filenames) are encoded as a series of
-     hexadecimal bytes.  The last argument to a system call may be a
-     buffer of escaped binary data (*note Binary Data::).
-
-
-   The valid responses to Host I/O packets are:
-
-`F RESULT [, ERRNO] [; ATTACHMENT]'
-     RESULT is the integer value returned by this operation, usually
-     non-negative for success and -1 for errors.  If an error has
-     occured, ERRNO will be included in the result.  ERRNO will have a
-     value defined by the File-I/O protocol (*note Errno Values::).  For
-     operations which return data, ATTACHMENT supplies the data as a
-     binary buffer.  Binary buffers in response packets are escaped in
-     the normal way (*note Binary Data::).  See the individual packet
-     documentation for the interpretation of RESULT and ATTACHMENT.
-
-`'
-     An empty response indicates that this operation is not recognized.
-
-
-   These are the supported Host I/O operations:
-
-`vFile:open: PATHNAME, FLAGS, MODE'
-     Open a file at PATHNAME and return a file descriptor for it, or
-     return -1 if an error occurs.  PATHNAME is a string, FLAGS is an
-     integer indicating a mask of open flags (*note Open Flags::), and
-     MODE is an integer indicating a mask of mode bits to use if the
-     file is created (*note mode_t Values::).  *Note open::, for
-     details of the open flags and mode values.
-
-`vFile:close: FD'
-     Close the open file corresponding to FD and return 0, or -1 if an
-     error occurs.
-
-`vFile:pread: FD, COUNT, OFFSET'
-     Read data from the open file corresponding to FD.  Up to COUNT
-     bytes will be read from the file, starting at OFFSET relative to
-     the start of the file.  The target may read fewer bytes; common
-     reasons include packet size limits and an end-of-file condition.
-     The number of bytes read is returned.  Zero should only be
-     returned for a successful read at the end of the file, or if COUNT
-     was zero.
-
-     The data read should be returned as a binary attachment on success.
-     If zero bytes were read, the response should include an empty
-     binary attachment (i.e. a trailing semicolon).  The return value
-     is the number of target bytes read; the binary attachment may be
-     longer if some characters were escaped.
-
-`vFile:pwrite: FD, OFFSET, DATA'
-     Write DATA (a binary buffer) to the open file corresponding to FD.
-     Start the write at OFFSET from the start of the file.  Unlike many
-     `write' system calls, there is no separate COUNT argument; the
-     length of DATA in the packet is used.  `vFile:write' returns the
-     number of bytes written, which may be shorter than the length of
-     DATA, or -1 if an error occurred.
-
-`vFile:unlink: PATHNAME'
-     Delete the file at PATHNAME on the target.  Return 0, or -1 if an
-     error occurs.  PATHNAME is a string.
-
-
-
-File: gdb.info,  Node: Interrupts,  Next: Notification Packets,  Prev: Host I/O Packets,  Up: Remote Protocol
-
-E.8 Interrupts
-==============
-
-When a program on the remote target is running, GDB may attempt to
-interrupt it by sending a `Ctrl-C', `BREAK' or a `BREAK' followed by
-`g', control of which is specified via GDB's `interrupt-sequence'.
-
-   The precise meaning of `BREAK' is defined by the transport mechanism
-and may, in fact, be undefined.  GDB does not currently define a
-`BREAK' mechanism for any of the network interfaces except for TCP, in
-which case GDB sends the `telnet' BREAK sequence.
-
-   `Ctrl-C', on the other hand, is defined and implemented for all
-transport mechanisms.  It is represented by sending the single byte
-`0x03' without any of the usual packet overhead described in the
-Overview section (*note Overview::).  When a `0x03' byte is transmitted
-as part of a packet, it is considered to be packet data and does _not_
-represent an interrupt.  E.g., an `X' packet (*note X packet::), used
-for binary downloads, may include an unescaped `0x03' as part of its
-packet.
-
-   `BREAK' followed by `g' is also known as Magic SysRq g.  When Linux
-kernel receives this sequence from serial port, it stops execution and
-connects to gdb.
-
-   Stubs are not required to recognize these interrupt mechanisms and
-the precise meaning associated with receipt of the interrupt is
-implementation defined.  If the target supports debugging of multiple
-threads and/or processes, it should attempt to interrupt all
-currently-executing threads and processes.  If the stub is successful
-at interrupting the running program, it should send one of the stop
-reply packets (*note Stop Reply Packets::) to GDB as a result of
-successfully stopping the program in all-stop mode, and a stop reply
-for each stopped thread in non-stop mode.  Interrupts received while the
-program is stopped are discarded.
-
-
-File: gdb.info,  Node: Notification Packets,  Next: Remote Non-Stop,  Prev: Interrupts,  Up: Remote Protocol
-
-E.9 Notification Packets
-========================
-
-The GDB remote serial protocol includes "notifications", packets that
-require no acknowledgment.  Both the GDB and the stub may send
-notifications (although the only notifications defined at present are
-sent by the stub).  Notifications carry information without incurring
-the round-trip latency of an acknowledgment, and so are useful for
-low-impact communications where occasional packet loss is not a problem.
-
-   A notification packet has the form `% DATA # CHECKSUM', where DATA
-is the content of the notification, and CHECKSUM is a checksum of DATA,
-computed and formatted as for ordinary GDB packets.  A notification's
-DATA never contains `$', `%' or `#' characters.  Upon receiving a
-notification, the recipient sends no `+' or `-' to acknowledge the
-notification's receipt or to report its corruption.
-
-   Every notification's DATA begins with a name, which contains no
-colon characters, followed by a colon character.
-
-   Recipients should silently ignore corrupted notifications and
-notifications they do not understand.  Recipients should restart
-timeout periods on receipt of a well-formed notification, whether or
-not they understand it.
-
-   Senders should only send the notifications described here when this
-protocol description specifies that they are permitted.  In the future,
-we may extend the protocol to permit existing notifications in new
-contexts; this rule helps older senders avoid confusing newer
-recipients.
-
-   (Older versions of GDB ignore bytes received until they see the `$'
-byte that begins an ordinary packet, so new stubs may transmit
-notifications without fear of confusing older clients.  There are no
-notifications defined for GDB to send at the moment, but we assume that
-most older stubs would ignore them, as well.)
-
-   The following notification packets from the stub to GDB are defined:
-
-`Stop: REPLY'
-     Report an asynchronous stop event in non-stop mode.  The REPLY has
-     the form of a stop reply, as described in *note Stop Reply
-     Packets::.  Refer to *note Remote Non-Stop::, for information on
-     how these notifications are acknowledged by GDB.
 
