@@ -282,6 +282,9 @@
    when building for Cygwin. */
 #undef USE_WIN32API
 
+/* Define to 1 if you have the <sys/un.h> header file. */
+#undef HAVE_SYS_UN_H
+
 /* Define if an XML target description is available. */
 #undef USE_XML
 

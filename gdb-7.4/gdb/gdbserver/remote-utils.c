@@ -59,9 +59,11 @@
 #if HAVE_ERRNO_H
 #include <errno.h>
 #endif
-
 #if USE_WIN32API
 #include <winsock2.h>
+#endif
+#if HAVE_SYS_UN_H
+#include <sys/un.h>
 #endif
 
 #if __QNX__
