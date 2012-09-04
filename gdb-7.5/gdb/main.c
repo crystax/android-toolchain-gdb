@@ -43,6 +43,14 @@
 #include "objfiles.h"
 #include "auto-load.h"
 
+#ifdef __MINGW32__
+#include <windows.h>
+#endif
+
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 /* The selected interpreter.  This will be used as a set command
    variable, so it should always be malloc'ed - since
    do_setshow_command will free it.  */
@@ -87,7 +95,7 @@ int return_child_result_value = -1;
 
 
 /* GDB as it has been invoked from the command line (i.e. argv[0]).  */
-static char *gdb_program_name;
+char *gdb_program_name;
 
 static void print_gdb_help (struct ui_file *);
 
@@ -265,6 +273,43 @@ typedef struct cmdarg {
 /* Define type VEC (cmdarg_s).  */
 DEF_VEC_O (cmdarg_s);
 
+char* get_program_name(char* argv0)
+{
+  char new_argv0[1024] = {'\0'};
+#if defined(__linux__) || defined(__CYGWIN__)
+  size_t len;
+  if ((len = readlink("/proc/self/exe", new_argv0, sizeof(new_argv0)-1)) != -1)
+    {
+      new_argv0[len] = '\0';
+    }
+#elif defined(__APPLE__)
+  uint32_t len;
+  len=(uint32_t)sizeof(new_argv0);
+  _NSGetExecutablePath(new_argv0, &len);
+#else
+  unsigned long bufsize=sizeof(new_argv0);
+  if (GetModuleFileName(NULL, new_argv0, bufsize) != 0)
+    {
+      /* Early conversion to unix slashes instead of more changes
+       * everywhere else... */
+      char *winslash = strchr(new_argv0,'\\');
+      while (winslash)
+        {
+          *winslash = '/';
+          winslash = strchr(winslash,'\\');
+        }
+    }
+#endif
+  if (!strlen(new_argv0))
+    {
+       return xstrdup(argv0);
+    }
+  else
+    {
+      return xstrdup(new_argv0);
+    }
+}
+
 static int
 captured_main (void *data)
 {
@@ -344,7 +389,7 @@ captured_main (void *data)
   gdb_stdtargerr = gdb_stderr;	/* for moment */
   gdb_stdtargin = gdb_stdin;	/* for moment */
 
-  gdb_program_name = xstrdup (argv[0]);
+  gdb_program_name = get_program_name (argv[0]);
 
   if (! getcwd (gdb_dirbuf, sizeof (gdb_dirbuf)))
     /* Don't use *_filtered or warning() (which relies on
