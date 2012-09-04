@@ -63,8 +63,12 @@ static const char *xmltarget_amd64_linux_no_xml = "@<target>\
 </target>";
 #endif
 
+#ifdef HAVE_SYS_REG_H
 #include <sys/reg.h>
+#endif
+#ifdef HAVE_SYS_PROCFS_H
 #include <sys/procfs.h>
+#endif
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 
@@ -85,6 +89,9 @@ static const char *xmltarget_amd64_linux_no_xml = "@<target>\
 #ifndef PTRACE_ARCH_PRCTL
 #define PTRACE_ARCH_PRCTL      30
 #endif
+
+#define PTRACE_ARG3_TYPE       void*
+#define PTRACE_ARG4_TYPE       void*
 
 /* The following definitions come from prctl.h, but may be absent
    for certain configurations.  */
