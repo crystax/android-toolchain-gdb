@@ -1,0 +1,21 @@
+2012-09-13  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	GDB Linaro 7.5-2012.09 released.
+
+	gdb/
+	* version.in: Update.
+
+2012-09-12  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	* src-release: Support gdb-linaro packages.
+
+	gdb/
+	* version.in: Set to Linaro GDB version number.
+
+	* configure.ac (PKGVERSION, BUGURL): Refer to Linaro.
+	* configure: Regenerate.
+
+	gdb/gdbserver/
+	* configure.ac (PKGVERSION, BUGURL): Refer to Linaro.
+	* configure: Regenerate.
+
