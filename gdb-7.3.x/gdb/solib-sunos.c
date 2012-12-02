@@ -3,6 +3,8 @@
    Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000,
    2001, 2004, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
 
+   Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
+
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
@@ -139,7 +141,7 @@ static CORE_ADDR flag_addr;
 /* link map access functions */
 
 static CORE_ADDR
-LM_ADDR (struct so_list *so)
+lm_addr (struct so_list *so)
 {
   enum bfd_endian byte_order = gdbarch_byte_order (target_gdbarch);
   int lm_addr_offset = offsetof (struct link_map, lm_addr);
@@ -150,7 +152,7 @@ LM_ADDR (struct so_list *so)
 }
 
 static CORE_ADDR
-LM_NEXT (struct so_list *so)
+lm_next (struct so_list *so)
 {
   enum bfd_endian byte_order = gdbarch_byte_order (target_gdbarch);
   int lm_next_offset = offsetof (struct link_map, lm_next);
@@ -162,7 +164,7 @@ LM_NEXT (struct so_list *so)
 }
 
 static CORE_ADDR
-LM_NAME (struct so_list *so)
+lm_name (struct so_list *so)
 {
   enum bfd_endian byte_order = gdbarch_byte_order (target_gdbarch);
   int lm_name_offset = offsetof (struct link_map, lm_name);
@@ -435,10 +437,10 @@ sunos_current_sos (void)
 
       read_memory (lm, new->lm_info->lm, sizeof (struct link_map));
 
-      lm = LM_NEXT (new);
+      lm = lm_next (new);
 
       /* Extract this shared object's name.  */
-      target_read_string (LM_NAME (new), &buffer,
+      target_read_string (lm_name (new), &buffer,
 			  SO_NAME_MAX_PATH_SIZE - 1, &errcode);
       if (errcode != 0)
 	warning (_("Can't read pathname for load map: %s."),
@@ -825,8 +827,8 @@ static void
 sunos_relocate_section_addresses (struct so_list *so,
 				  struct target_section *sec)
 {
-  sec->addr += LM_ADDR (so);
-  sec->endaddr += LM_ADDR (so);
+  sec->addr += lm_addr (so);
+  sec->endaddr += lm_addr (so);
 }
 
 static struct target_so_ops sunos_so_ops;
@@ -839,6 +841,7 @@ _initialize_sunos_solib (void)
   sunos_so_ops.clear_solib = sunos_clear_solib;
   sunos_so_ops.solib_create_inferior_hook = sunos_solib_create_inferior_hook;
   sunos_so_ops.special_symbol_handling = sunos_special_symbol_handling;
+  sunos_so_ops.can_read_current_sos = NULL;
   sunos_so_ops.current_sos = sunos_current_sos;
   sunos_so_ops.open_symbol_file_object = open_symbol_file_object;
   sunos_so_ops.in_dynsym_resolve_code = sunos_in_dynsym_resolve_code;

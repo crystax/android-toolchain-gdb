@@ -1199,6 +1199,7 @@ enum {
   PACKET_qXfer_auxv,
   PACKET_qXfer_features,
   PACKET_qXfer_libraries,
+  PACKET_qXfer_libraries_svr4,
   PACKET_qXfer_memory_map,
   PACKET_qXfer_spu_read,
   PACKET_qXfer_spu_write,
@@ -3689,6 +3690,8 @@ static struct protocol_feature remote_protocol_features[] = {
     PACKET_qXfer_features },
   { "qXfer:libraries:read", PACKET_DISABLE, remote_supported_packet,
     PACKET_qXfer_libraries },
+  { "qXfer:libraries-svr4:read", PACKET_DISABLE, remote_supported_packet,
+    PACKET_qXfer_libraries_svr4 },
   { "qXfer:memory-map:read", PACKET_DISABLE, remote_supported_packet,
     PACKET_qXfer_memory_map },
   { "qXfer:spu:read", PACKET_DISABLE, remote_supported_packet,
@@ -7610,12 +7613,17 @@ remote_insert_breakpoint (struct gdbarch *gdbarch,
 
   if (remote_protocol_packets[PACKET_Z0].support != PACKET_DISABLE)
     {
+      CORE_ADDR pc_addr;
       CORE_ADDR addr = bp_tgt->placed_address;
       struct remote_state *rs;
       char *p;
       int bpsize;
 
-      gdbarch_remote_breakpoint_from_pc (gdbarch, &addr, &bpsize);
+      pc_addr = bp_tgt->requested_address ?
+          bp_tgt->requested_address :
+          bp_tgt->placed_address;
+
+      gdbarch_remote_breakpoint_from_pc (gdbarch, &pc_addr, &bpsize);
 
       rs = get_remote_state ();
       p = rs->buf;
@@ -7623,7 +7631,7 @@ remote_insert_breakpoint (struct gdbarch *gdbarch,
       *(p++) = 'Z';
       *(p++) = '0';
       *(p++) = ',';
-      addr = (ULONGEST) remote_address_masked (addr);
+      addr = (ULONGEST) remote_address_masked (pc_addr);
       p += hexnumstr (p, addr);
       sprintf (p, ",%d", bpsize);
 
@@ -8263,6 +8271,11 @@ remote_xfer_partial (struct target_ops *ops, enum target_object object,
       return remote_read_qxfer
 	(ops, "libraries", annex, readbuf, offset, len,
 	 &remote_protocol_packets[PACKET_qXfer_libraries]);
+
+    case TARGET_OBJECT_LIBRARIES_SVR4:
+      return remote_read_qxfer
+	(ops, "libraries-svr4", annex, readbuf, offset, len,
+	 &remote_protocol_packets[PACKET_qXfer_libraries_svr4]);
 
     case TARGET_OBJECT_MEMORY_MAP:
       gdb_assert (annex == NULL);
@@ -10778,6 +10791,9 @@ Show the maximum size of the address (in bits) in a memory packet."), NULL,
 
   add_packet_config_cmd (&remote_protocol_packets[PACKET_qXfer_libraries],
 			 "qXfer:libraries:read", "library-info", 0);
+
+  add_packet_config_cmd (&remote_protocol_packets[PACKET_qXfer_libraries_svr4],
+			 "qXfer:libraries-svr4:read", "library-info-svr4", 0);
 
   add_packet_config_cmd (&remote_protocol_packets[PACKET_qXfer_memory_map],
 			 "qXfer:memory-map:read", "memory-map", 0);
