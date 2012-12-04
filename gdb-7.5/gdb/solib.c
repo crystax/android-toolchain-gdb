@@ -1,6 +1,6 @@
 /* Handle shared libraries for GDB, the GNU Debugger.
 
-   Copyright (C) 1990-2003, 2005-2012 Free Software Foundation, Inc.
+   Copyright (C) 1990-2003, 2005-2013 Free Software Foundation, Inc.
 
    Copyright (C) 2011, NVIDIA CORPORATION.  All rights reserved.
 
@@ -740,7 +740,7 @@ update_solib_list (int from_tty, struct target_ops *target)
 	  else
 	    {
 	      if (! filename_cmp (gdb->so_original_name, i->so_original_name))
-		break;	      
+		break;
 	    }
 
 	  i_link = &i->next;
@@ -1036,7 +1036,7 @@ info_sharedlibrary_command (char *pattern, int from_tty)
 	  ui_out_field_string (uiout, "syms-read", "Yes (*)");
 	}
       else
-	ui_out_field_string (uiout, "syms-read", 
+	ui_out_field_string (uiout, "syms-read",
 			     so->symbols_loaded ? "Yes" : "No");
 
       ui_out_field_string (uiout, "name", so->so_name);
@@ -1289,13 +1289,13 @@ reload_shared_libraries (char *ignored, int from_tty,
 
   ops = solib_ops (target_gdbarch);
 
-  /* Creating inferior hooks here has two purposes.  First, if we reload 
+  /* Creating inferior hooks here has two purposes.  First, if we reload
      shared libraries then the address of solib breakpoint we've computed
      previously might be no longer valid.  For example, if we forgot to set
      solib-absolute-prefix and are setting it right now, then the previous
      breakpoint address is plain wrong.  Second, installing solib hooks
      also implicitly figures were ld.so is and loads symbols for it.
-     Absent this call, if we've just connected to a target and set 
+     Absent this call, if we've just connected to a target and set
      solib-absolute-prefix or solib-search-path, we'll lose all information
      about ld.so.  */
   if (target_has_execution)
@@ -1427,9 +1427,10 @@ bfd_lookup_symbol_from_dyn_symtab (bfd *abfd,
 
 	  if (match_sym (sym, data))
 	    {
-	      /* BFD symbols are section relative.  */
-	      symaddr = sym->value + sym->section->vma;
-	      break;
+		  /* BFD symbols are section relative, and stripped of ISA bits. */
+		  symaddr = gdbarch_isatized_symbol_value(target_gdbarch, sym)
+			+ sym->section->vma;
+		  break;
 	    }
 	}
       do_cleanups (back_to);
