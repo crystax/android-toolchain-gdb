@@ -4410,13 +4410,14 @@ linux_read_memory (CORE_ADDR memaddr, unsigned char *myaddr, int len)
 	 supports it (only one syscall), and it's 64-bit safe even on
 	 32-bit platforms (for instance, SPARC debugging a SPARC64
 	 application).  */
-#ifdef HAVE_PREAD64
-      bytes = pread64 (fd, myaddr, len, memaddr);
-#else
+	  /* todo: zuav */
+/* #ifdef HAVE_PREAD64 */
+/*       bytes = pread64 (fd, myaddr, len, memaddr); */
+/* #else */
       bytes = -1;
       if (lseek (fd, memaddr, SEEK_SET) != -1)
 	bytes = read (fd, myaddr, len);
-#endif
+/* #endif */
 
       close (fd);
       if (bytes == len)
