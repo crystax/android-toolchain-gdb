@@ -3,7 +3,7 @@
 /* Dynamic architecture support for GDB, the GNU debugger.
 
    Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-   2007, 2008, 2009 Free Software Foundation, Inc.
+   2007, 2008, 2009, 2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -11,12 +11,12 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-  
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-  
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
@@ -37,7 +37,7 @@
 #include "arch-utils.h"
 
 #include "gdbcmd.h"
-#include "inferior.h" 
+#include "inferior.h"
 #include "symcat.h"
 
 #include "floatformat.h"
@@ -222,8 +222,8 @@ struct gdbarch
   int frame_red_zone_size;
   gdbarch_convert_from_func_ptr_addr_ftype *convert_from_func_ptr_addr;
   gdbarch_addr_bits_remove_ftype *addr_bits_remove;
-  gdbarch_smash_text_address_ftype *smash_text_address;
   gdbarch_isatized_symbol_value_ftype *isatized_symbol_value;
+  gdbarch_smash_text_address_ftype *smash_text_address;
   gdbarch_software_single_step_ftype *software_single_step;
   gdbarch_single_step_through_delay_ftype *single_step_through_delay;
   gdbarch_print_insn_ftype *print_insn;
@@ -392,8 +392,8 @@ struct gdbarch startup_gdbarch =
   0,  /* frame_red_zone_size */
   convert_from_func_ptr_addr_identity,  /* convert_from_func_ptr_addr */
   core_addr_identity,  /* addr_bits_remove */
-  core_addr_identity,  /* smash_text_address */
   core_addr_identity,  /* isatized_symbol_value */
+  core_addr_identity,  /* smash_text_address */
   0,  /* software_single_step */
   0,  /* single_step_through_delay */
   0,  /* print_insn */
@@ -531,6 +531,7 @@ gdbarch_alloc (const struct gdbarch_info *info,
   gdbarch->stabs_argument_has_addr = default_stabs_argument_has_addr;
   gdbarch->convert_from_func_ptr_addr = convert_from_func_ptr_addr_identity;
   gdbarch->addr_bits_remove = core_addr_identity;
+  gdbarch->isatized_symbol_value = core_addr_identity;
   gdbarch->smash_text_address = core_addr_identity;
   gdbarch->skip_trampoline_code = generic_skip_trampoline_code;
   gdbarch->skip_solib_resolver = generic_skip_solib_resolver;
@@ -694,6 +695,7 @@ verify_gdbarch (struct gdbarch *gdbarch)
   /* Skip verify of stabs_argument_has_addr, invalid_p == 0 */
   /* Skip verify of convert_from_func_ptr_addr, invalid_p == 0 */
   /* Skip verify of addr_bits_remove, invalid_p == 0 */
+  /* Skip verify of isatized_symbol_value, invalid_p == 0 */
   /* Skip verify of smash_text_address, invalid_p == 0 */
   /* Skip verify of software_single_step, has predicate.  */
   /* Skip verify of single_step_through_delay, has predicate.  */
@@ -1080,6 +1082,9 @@ gdbarch_dump (struct gdbarch *gdbarch, struct ui_file *file)
   fprintf_unfiltered (file,
                       "gdbarch_dump: iterate_over_objfiles_in_search_order = <%s>\n",
                       host_address_to_string (gdbarch->iterate_over_objfiles_in_search_order));
+  fprintf_unfiltered (file,
+                      "gdbarch_dump: isatized_symbol_value = <%s>\n",
+                      host_address_to_string (gdbarch->isatized_symbol_value));
   fprintf_unfiltered (file,
                       "gdbarch_dump: long_bit = %s\n",
                       plongest (gdbarch->long_bit));
@@ -2987,7 +2992,7 @@ set_gdbarch_addr_bits_remove (struct gdbarch *gdbarch,
 }
 
 CORE_ADDR
-gdbarch_isatized_symbol_value(struct gdbarch *gdbarch, asymbol *sym)
+gdbarch_isatized_symbol_value (struct gdbarch *gdbarch, asymbol *sym)
 {
   gdb_assert (gdbarch != NULL);
   gdb_assert (gdbarch->isatized_symbol_value != NULL);
@@ -2998,7 +3003,7 @@ gdbarch_isatized_symbol_value(struct gdbarch *gdbarch, asymbol *sym)
 
 void
 set_gdbarch_isatized_symbol_value (struct gdbarch *gdbarch,
-                              gdbarch_isatized_symbol_value_ftype isatized_symbol_value)
+                                   gdbarch_isatized_symbol_value_ftype isatized_symbol_value)
 {
   gdbarch->isatized_symbol_value = isatized_symbol_value;
 }
@@ -4663,7 +4668,7 @@ gdbarch_find_by_info (struct gdbarch_info info)
 			"New architecture %s (%s) selected\n",
 			host_address_to_string (new_gdbarch),
 			new_gdbarch->bfd_arch_info->printable_name);
-  
+
   /* Insert the new architecture into the front of the architecture
      list (keep the list sorted Most Recently Used).  */
   {
@@ -4671,7 +4676,7 @@ gdbarch_find_by_info (struct gdbarch_info info)
     this->next = rego->arches;
     this->gdbarch = new_gdbarch;
     rego->arches = this;
-  }    
+  }
 
   /* Check that the newly installed architecture is valid.  Plug in
      any post init values.  */
