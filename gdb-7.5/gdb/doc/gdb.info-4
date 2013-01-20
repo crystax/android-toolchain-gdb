@@ -23,7 +23,7 @@ developing GNU and promoting software freedom."
    This file documents the GNU debugger GDB.
 
    This is the Tenth Edition, of `Debugging with GDB: the GNU
-Source-Level Debugger' for GDB (Linaro GDB) Version 7.5-2012.09.
+Source-Level Debugger' for GDB (Linaro GDB) Version 7.5-2012.12.
 
    Copyright (C) 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996,
 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
@@ -58,6 +58,13 @@ in all of the directories as specified below.
 
    Note that loading of this script file also requires accordingly
 configured `auto-load safe-path' (*note Auto-loading safe path::).
+
+   For object files using `.exe' suffix GDB tries to load first the
+scripts normally according to its `.exe' filename.  But if no scripts
+are found GDB also tries script filenames matching the object file
+without its `.exe' suffix.  This `.exe' stripping is case insensitive
+and it is attempted on any platform.  This makes the script filenames
+compatible between Unix and MS-Windows hosts.
 
 `set auto-load scripts-directory [DIRECTORIES]'
      Control GDB auto-loaded scripts location.  Multiple directory
@@ -8719,7 +8726,7 @@ and TeX (or `texi2roff') to typeset the printed version.
 
    GDB includes an already formatted copy of the on-line Info version
 of this manual in the `gdb' subdirectory.  The main Info file is
-`gdb-linaro-7.5-2012.09/gdb/gdb.info', and it refers to subordinate
+`gdb-linaro-7.5-2012.12/gdb/gdb.info', and it refers to subordinate
 files matching `gdb.info*' in the same directory.  If necessary, you
 can print out these files, or read them with any editor; but they are
 easier to read using the `info' subsystem in GNU Emacs or the
@@ -8730,8 +8737,8 @@ distribution.
 Info formatting programs, such as `texinfo-format-buffer' or `makeinfo'.
 
    If you have `makeinfo' installed, and are in the top level GDB
-source directory (`gdb-linaro-7.5-2012.09', in the case of version
-7.5-2012.09), you can make the Info file by typing:
+source directory (`gdb-linaro-7.5-2012.12', in the case of version
+7.5-2012.12), you can make the Info file by typing:
 
      cd gdb
      make gdb.info
@@ -8756,7 +8763,7 @@ format.  On its own, TeX cannot either read or typeset a Texinfo file.
 
    If you have TeX and a DVI printer program installed, you can typeset
 and print this manual.  First switch to the `gdb' subdirectory of the
-main source directory (for example, to `gdb-linaro-7.5-2012.09/gdb')
+main source directory (for example, to `gdb-linaro-7.5-2012.12/gdb')
 and type:
 
      make gdb.dvi
@@ -8765,8 +8772,8 @@ and type:
 
    ---------- Footnotes ----------
 
-   (1) In `gdb-linaro-7.5-2012.09/gdb/refcard.ps' of the version
-7.5-2012.09 release.
+   (1) In `gdb-linaro-7.5-2012.12/gdb/refcard.ps' of the version
+7.5-2012.12 release.
 
 
 File: gdb.info,  Node: Installing GDB,  Next: Maintenance Commands,  Prev: Formatting Documentation,  Up: Top
