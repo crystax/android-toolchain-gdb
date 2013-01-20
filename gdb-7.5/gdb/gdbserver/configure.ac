@@ -43,6 +43,12 @@ AC_FUNC_ALLOCA
 # Check for the 'make' the user wants to use.
 AC_CHECK_PROGS(MAKE, make)
 
+# Check for the 'ar' the user wants to use
+AC_CHECK_PROGS(AR, ar)
+
+# Check for the 'ranlib' the user wants to use
+AC_CHECK_PROGS(RANLIB, RANLIB)
+
 # Configure gnulib.  We can't use AC_CONFIG_SUBDIRS as that'd expect
 # to find the the source subdir to be configured directly under
 # gdbserver/.  We need to build gnulib under some other directory not
