@@ -1,0 +1,326 @@
+2012-06-13  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	GDB Linaro 7.4-2012.06 released.
+
+	gdb/
+	* version.in: Update.
+
+2012-06-13  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	gdb/
+	* source.c (openp): Expand tilde in path entries.
+
+2012-06-13  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	gdb/testsuite/
+	* gdb.python/py-prompt.exp: Quit if the target is remote.
+
+2012-04-12  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	gdb/
+	* version.in: Bump version.
+
+2012-04-12  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	GDB Linaro 7.4-2012.04 released.
+
+	gdb/
+	* version.in: Update.
+
+2012-04-09  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	* acinclude.m4 (GDBSERVER_HAVE_THREAD_DB_TYPE): New macro based
+	on BFD_HAVE_SYS_PROCFS_TYPE.
+	* configure.ac: Look for lwpid_t and psaddr_t in libthread_db.h.
+
+2012-04-09  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	* linux-low.h (PTRACE_ARG3_TYPE): Move macro from linux-low.c.
+	(PTRACE_ARG4_TYPE): Likewise.
+	(PTRACE_XFER_TYPE): Likewise.
+	* linux-arm-low.c (arm_prepare_to_resume): Cast third argument of
+	ptrace to PTRACE_ARG3_TYPE.
+	* linux-low.c (PTRACE_ARG3_TYPE): Move macro to linux-low.h.
+	(PTRACE_ARG4_TYPE): Likewise.
+	(PTRACE_XFER_TYPE): Likewise.
+	(linux_detach_one_lwp): Cast fourth argument of
+	ptrace to long then PTRACE_ARG4_TYPE.
+	(regsets_fetch_inferior_registers): Cast third argument of
+	ptrace to long then PTRACE_ARG3_TYPE.
+	(regsets_store_inferior_registers): Likewise.
+
+2012-04-08  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	* configure.ac: Check whether Elf32_auxv_t and Elf64_auxv_t
+	are available.
+	* linux-low.c [HAVE_ELF32_AUXV_T] (Elf32_auxv_t): Add typedef.
+	[HAVE_ELF64_AUXV_T] (Elf64_auxv_t): Likewise.
+	* config.in: Regenerate.
+	* configure: Likewise.
+
+2012-02-09  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	gdb/
+	* version.in: Bump version.
+
+2012-02-09  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	GDB Linaro 7.4-2012.02 released.
+
+	gdb/
+	* version.in: Update.
+
+2012-01-20  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* NEWS: Document remote "info proc" and "generate-core-file".
+
+2012-01-20  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* gdbarch.sh (find_memory_regions): New callback.
+	* gdbarch.c, gdbarch.h: Regenerate.
+
+	* gcore.c (gcore_memory_sections): Try gdbarch find_memory_regions
+	callback before falling back to target method.
+
+	* linux-nat.c (read_mapping, linux_nat_find_memory_regions): Remove.
+	(linux_target_install_ops): No longer install it.
+
+	* linux-tdep.c (linux_find_memory_regions): New function.
+	(linux_init_abi): Install it.
+
+2012-01-20  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* gdbarch.sh (make_corefile_notes): New architecture callback.
+	* gdbarch.c: Regenerate.
+	* gdbarch.h: Likewise.
+
+	* gcore.c (write_gcore_file): Try gdbarch_make_corefile_notes
+	before target_make_corefile_notes.  If NULL is returned, the
+	target does not support core file generation.
+
+	* linux-nat.c: Include "linux-tdep.h".
+	(find_signalled_thread, find_stop_signal): Remove.
+	(linux_nat_do_thread_registers): Likewise.
+	(struct linux_nat_corefile_thread_data): Likewise.
+	(linux_nat_corefile_thread_callback): Likewise.
+	(iterate_over_spus): Likewise.
+	(struct linux_spu_corefile_data): Likewise.
+	(linux_spu_corefile_callback): Likewise.
+	(linux_spu_make_corefile_notes): Likewise.
+	(linux_nat_collect_thread_registers): New function.
+	(linux_nat_make_corefile_notes): Replace contents by call to
+	linux_make_corefile_notes passing linux_nat_collect_thread_registers
+	as native-only callback.
+
+	* linux-tdep.h: Include "bfd.h".
+	(struct regcache): Add forward declaration.
+	(linux_collect_thread_registers_ftype): New typedef.
+	(linux_make_corefile_notes): Add prototype.
+	* linux-tdep.c: Include "gdbthread.h", "gdbcore.h", "regcache.h",
+	"regset.h", and "elf-bfd.h".
+	(find_signalled_thread, find_stop_signal): New functions.
+	(linux_spu_make_corefile_notes): Likewise.
+	(linux_collect_thread_registers): Likewise.
+	(struct linux_corefile_thread_data): New data structure.
+	(linux_corefile_thread_callback): New funcion.
+	(linux_make_corefile_notes): Likewise.
+	(linux_make_corefile_notes_1): Likewise.
+	(linux_init_abi): Install it.
+
+2012-01-20  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	bfd/
+	* elf.c (elfcore_write_prpsinfo): Provide unconditionally.
+	Return NULL if core file generation is unsupported.
+	(elfcore_write_prstatus): Likewise.
+	* elf32-arm.c (elf32_arm_nabi_write_core_note): New function.
+	(elf_backend_write_core_note): Define.
+
+2012-01-20  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* gdbarch.sh (info_proc): New callback.
+	* gdbarch.c, gdbarch.h: Regenerate.
+
+	* infcmd.c (info_proc_cmd_1): Try gdbarch info_proc callback
+	before falling back to the target info_proc callback.
+
+	* linux-nat.c: Do not include "cli/cli-utils.h".
+	(linux_nat_info_proc): Remove.
+	(linux_target_install_ops): No longer install it.
+
+	* linux-tdep.c: Include "cli/cli-utils.h" and <ctype.h>.
+	(read_mapping): New function.
+	(linux_info_proc): Likewise.
+	(linux_init_abi): Install it.
+
+2012-01-20  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* defs.h (enum info_proc_what): Moved here from linux-nat.c
+	* infcmd.c: (info_proc_cmd_1): New function.
+	(info_proc_cmd): New function, moved here from equivalent routine
+	orignally in linux-nat.c.
+	(info_proc_cmd_mappings): Likewise.
+	(info_proc_cmd_stat): Likewise.
+	(info_proc_cmd_status): Likewise.
+	(info_proc_cmd_cwd): Likewise.
+	(info_proc_cmd_cmdline): Likewise.
+	(info_proc_cmd_exe): Likewise.
+	(info_proc_cmd_all): Likewise.
+	(_initialize_infcmd): Install "info proc" command and subcommands.
+
+	* target.h (struct target_ops): Add to_info_proc.
+	(target_info_proc): Add prototype.
+	* target.c (target_info_proc): New function.
+
+	* procfs.c (procfs_info_proc): Add prototype.
+	(info_proc_cmd): Rename into ...
+	(procfs_info_proc): ... this.  Update argument types as appropriate
+	for a to_info_proc implementation.  Handle "what" argument.
+	(procfs_target): Install procfs_info_proc.
+	(_initialize_procfs): No longer install "info proc" command.
+
+	* linux-nat.c: (enum info_proc_what): Remove.
+	(linux_nat_info_proc_cmd_1): Rename into ...
+	(linux_nat_info_proc): ... this.  Update argument types as appropriate
+	for a to_info_proc implementation.
+	(linux_nat_info_proc_cmd): Remove.
+	(linux_nat_info_proc_cmd_mappings): Likewise.
+	(linux_nat_info_proc_cmd_stat): Likewise.
+	(linux_nat_info_proc_cmd_status): Likewise.
+	(linux_nat_info_proc_cmd_cwd): Likewise.
+	(linux_nat_info_proc_cmd_cmdline): Likewise.
+	(linux_nat_info_proc_cmd_exe): Likewise.
+	(linux_nat_info_proc_cmd_all): Likewise.
+	(linux_target_install_ops): Install linux_nat_info_proc.
+	(_initialize_linux_nat): No longer install "info proc" command
+	and subcommands.
+
+	gdb/testsuite/
+	* gdb.base/info-proc.exp: Also run on remote targets.  Main
+	"info proc" command is now always present; whether target supports
+	actual info proc operation is detected when attempting to issue
+	the command.
+
+2012-01-20  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* configure.ac [AC_CHECK_FUNCS]: Check for readlink.
+	* config.in, configure: Regenerate.
+
+	* target.h (struct target_ops): Add to_fileio_readlink.
+	(target_fileio_readlink): Add prototype.
+	* target.c (target_fileio_readlink): New function.
+
+	* inf-child.c: Conditionally include <sys/param.h>.
+	(inf_child_fileio_readlink): New function.
+	(inf_child_target): Install it.
+
+	* remote.c (PACKET_vFile_readlink): New enum value.
+	(remote_hostio_readlink): New function.
+	(init_remote_ops): Install it.
+	(_initialize_remote): Handle vFile:readlink packet type.
+
+	gdb/doc/
+	* gdb.texinfo (Remote Configuration): Document
+	"set remote hostio-readlink-packet" command.
+	(General Query Packets): Document vFile:readlink packet.
+
+	gdb/gdbserver/
+	* hostio.c (handle_readlink): New function.
+	(handle_vFile): Call it to handle "vFile:readlink" packets.
+
+2012-01-20  Pedro Alves  <palves@redhat.com>
+	    Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* configure.ac [AC_CHECK_FUNCS]: Check for pread and pwrite.
+	* config.in, configure: Regenerate.
+
+	* target.h (struct target_ops): Add to_fileio_open, to_fileio_pwrite,
+	to_fileio_pread, to_fileio_close, to_fileio_unlink.
+	(target_fileio_open): Add prototype.
+	(target_fileio_pwrite): Likewise.
+	(target_fileio_pread): Likewise.
+	(target_fileio_close): Likewise.
+	(target_fileio_unlink): Likewise.
+	(target_fileio_read_alloc): Likewise.
+	(target_fileio_read_stralloc): Likewise.
+
+	* target.c: Include "gdb/fileio.h".
+	(target_read_stralloc): Accept trailing, but not embedded NUL bytes.
+	(default_fileio_target): New function.
+	(target_fileio_open): Likewise.
+	(target_fileio_pwrite): Likewise.
+	(target_fileio_pread): Likewise.
+	(target_fileio_close): Likewise.
+	(target_fileio_unlink): Likewise.
+	(target_fileio_close_cleanup): Likewise.
+	(target_fileio_read_alloc_1): Likewise.
+	(target_fileio_read_alloc): Likewise.
+	(target_fileio_read_stralloc): Likewise.
+
+	* inf-child.c: Include "gdb/fileio.h", <sys/types.h>, <sys/stat.h>,
+	<fcntl.h>, and <unistd.h>.
+	(inf_child_fileio_open_flags_to_host): New function.
+	(inf_child_errno_to_fileio_error): Likewise.
+	(inf_child_fileio_open): Likewise.
+	(inf_child_fileio_pwrite): Likewise.
+	(inf_child_fileio_pread): Likewise.
+	(inf_child_fileio_close): Likewise.
+	(inf_child_fileio_unlink): Likewise.
+	(inf_child_target): Install to_fileio routines.
+
+	* remote.c (init_remote_ops): Install to_fileio routines.
+
+2012-01-20  Pedro Alves  <palves@redhat.com>
+	    Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* remote.c (remote_multi_process_p): Only check for multi-process
+	protocol feature, do not check for extended protocol.
+	(remote_supports_multi_process): Check for extended protocol here.
+	(set_general_process): Likewise.
+	(extended_remote_kill): Likewise.
+	(remote_pid_to_str): Likewise.
+	(remote_query_supported): Always query multiprocess mode.
+
+	gdb/gdbserver/
+	* server.c (handle_v_requests): Only support vAttach and vRun to
+	start multiple processes when in extended protocol mode.
+
+2012-01-20  Pedro Alves  <palves@redhat.com>
+	    Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	gdb/
+	* inferior.h (struct inferior): Add fake_pid_p.
+	* inferior.c (exit_inferior_1): Clear fake_pid_p.
+	* remote.c (remote_start_remote): Set fake_pid_p if we have to use
+	magic_null_ptid since the remote side doesn't provide a real PID.
+
+2011-08-02  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	Fix LP #615996
+
+	gdb/testsuite/
+	* gdb.cp/templates.exp: Update KFAIL patterns for PR 8216 to
+	also accept the ARM ABI.
+
+2011-08-02  Ulrich Weigand  <ulrich.weigand@linaro.org>
+
+	* src-release: Support gdb-linaro packages.
+
+	gdb/
+	* version.in: Set to Linaro GDB version number.
+
+	* configure.ac (PKGVERSION, BUGURL): Refer to Linaro.
+	* configure: Regenerate.
+
+	gdb/gdbserver/
+	* configure.ac (PKGVERSION, BUGURL): Refer to Linaro.
+	* configure: Regenerate.
+

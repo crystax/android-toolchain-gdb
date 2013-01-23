@@ -4291,7 +4291,7 @@ srv_libs=
 USE_THREAD_DB=
 
 if test "$srv_linux_thread_db" = "yes"; then
-  srv_libs="-ldl"
+  srv_libs="-lthread_db -lc"
   old_LDFLAGS="$LDFLAGS"
   LDFLAGS="$LDFLAGS -rdynamic"
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -4356,7 +4356,7 @@ if test "${with_libthread_db+set}" = set; then :
 
 $as_echo "#define USE_LIBTHREAD_DB_DIRECTLY 1" >>confdefs.h
 
-  srv_libs="$srv_libthread_db_path"
+  srv_libs="$srv_libthread_db_path -lc"
 
 fi
 

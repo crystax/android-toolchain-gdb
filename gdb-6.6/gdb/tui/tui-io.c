@@ -48,6 +48,13 @@
    "gdb_curses.h".  */
 #include "readline/readline.h"
 
+#ifdef __MINGW32__
+int pipe(int fd[2])
+{
+    return _pipe(fd, 4096, O_BINARY);
+}
+#endif
+
 int
 key_is_start_sequence (int ch)
 {

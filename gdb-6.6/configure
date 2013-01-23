@@ -5270,7 +5270,6 @@ s/ -target[= ][^ ]*//g
 s/ -program-prefix[= ][^ ]*//g
 s/ -program-suffix[= ][^ ]*//g
 s/ -program-transform-name[= ][^ ]*//g
-s/ [^' -][^ ]* / /
 s/^ *//;s/ *$//
 s,\$,$$,g
 EOF_SED

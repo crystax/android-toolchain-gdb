@@ -1216,7 +1216,7 @@ case ${host} in
 	       POSIX API.  On Windows, we use the Windows API when 
 	       building for MinGW, but the POSIX API when building 
 	       for Cygwin.])
-    WIN32LIBS="$WIN32LIBS -lws2_32"
+    WIN32LIBS="$WIN32LIBS -lws2_32 -lmsvcrt"
     ;;
 esac	    
 AC_SUBST(WIN32LIBS)
