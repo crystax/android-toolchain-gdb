@@ -12579,7 +12579,13 @@ esac
   intl=`echo $LIBINTL | sed 's,${top_builddir}/,,g'`
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
-    LIBS="-ldl $LIBS"
+    case $host_os in
+      *mingw32*)
+        ;;
+      *)
+        LIBS="-ldl $LIBS"
+        ;;
+    esac
   fi
   LIBS="-lbfd -liberty $intl $LIBS"
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ELF support in BFD" >&5
@@ -12621,7 +12627,13 @@ $as_echo "#define HAVE_ELF 1" >>confdefs.h
 
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
-    LIBS="-ldl $LIBS"
+    case $host_os in
+      *mingw32*)
+        ;;
+      *)
+        LIBS="-ldl $LIBS"
+        ;;
+    esac
   fi
 fi
 
@@ -12638,7 +12650,13 @@ fi
   intl=`echo $LIBINTL | sed 's,${top_builddir}/,,g'`
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
-    LIBS="-ldl $LIBS"
+    case $host_os in
+      *mingw32*)
+        ;;
+      *)
+        LIBS="-ldl $LIBS"
+        ;;
+    esac
   fi
   LIBS="-lbfd -liberty $intl $LIBS"
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Mach-O support in BFD" >&5
@@ -12690,7 +12708,13 @@ fi
   intl=`echo $LIBINTL | sed 's,${top_builddir}/,,g'`
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
-    LIBS="-ldl $LIBS"
+    case $host_os in
+      *mingw32*)
+        ;;
+      *)
+        LIBS="-ldl $LIBS"
+        ;;
+    esac
   fi
   LIBS="-lbfd -liberty $intl $LIBS"
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for SOM support in BFD" >&5

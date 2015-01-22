@@ -1,5 +1,5 @@
 dnl Autoconf configure script for GDB, the GNU debugger.
-dnl Copyright (C) 1995-2013 Free Software Foundation, Inc.
+dnl Copyright (C) 1995-2014 Free Software Foundation, Inc.
 dnl
 dnl This file is part of GDB.
 dnl 
@@ -2026,7 +2026,13 @@ if test $gdb_cv_var_elf = yes; then
 	    [Define if ELF support should be included.])
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
-    LIBS="-ldl $LIBS"
+    case $host_os in
+      *mingw32*)	 
+        ;;
+      *)
+        LIBS="-ldl $LIBS"
+        ;;
+    esac
   fi
 fi
 

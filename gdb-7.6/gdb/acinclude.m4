@@ -54,7 +54,7 @@ sinclude([../config/zlib.m4])
 ## From Franc,ois Pinard                     ##
 ## ----------------------------------------- ##
 
-# Copyright (C) 1996-2013 Free Software Foundation, Inc.
+# Copyright (C) 1996-2014 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -455,7 +455,13 @@ AC_DEFUN([GDB_AC_CHECK_BFD], [
   intl=`echo $LIBINTL | sed 's,${top_builddir}/,,g'`
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
-    LIBS="-ldl $LIBS"
+    case $host_os in
+      *mingw32*)	 
+        ;;
+      *)
+        LIBS="-ldl $LIBS"
+        ;;
+    esac
   fi
   LIBS="-lbfd -liberty $intl $LIBS"
   AC_CACHE_CHECK([$1], [$2],
