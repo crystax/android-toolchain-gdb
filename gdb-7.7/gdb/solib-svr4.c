@@ -48,6 +48,12 @@
 #include "gdb_bfd.h"
 #include "probe.h"
 
+#if defined(__mips__) && !defined(DT_MIPS_RLD_MAP2)
+/* This is new addition to elf.h, and not all host toolchains for Linux/Windows/MacOSX has it,
+   so we define it here for now */
+#define DT_MIPS_RLD_MAP2     0x70000035 /* Address of run time loader map, used for debugging. */
+#endif
+
 static struct link_map_offsets *svr4_fetch_link_map_offsets (void);
 static int svr4_have_link_map_offsets (void);
 static void svr4_relocate_main_executable (void);
