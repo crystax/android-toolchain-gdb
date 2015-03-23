@@ -47,12 +47,18 @@
 #include "filestuff.h"
 #include "tracepoint.h"
 #include "hostio.h"
-#if !defined (ELFMAG0) || (defined(__ANDROID__) && defined (__mips__))
+#if !defined (ELFMAG0)
 /* Don't include <linux/elf.h> here.  If it got included by gdb_proc_service.h
    then ELFMAG0 will have been defined.  If it didn't get included by
    gdb_proc_service.h then including it will likely introduce a duplicate
    definition of elf_fpregset_t.  */
 #include <elf.h>
+#endif
+
+#if defined(__mips__) && !defined(DT_MIPS_RLD_MAP2)
+/* This is new addition to elf.h, and not all host toolchains for Linux/Windows/MacOSX has it,
+   so we define it here for now */
+#define DT_MIPS_RLD_MAP2     0x70000035 /* Address of run time loader map, used for debugging. */
 #endif
 
 #ifndef SPUFS_MAGIC
@@ -112,7 +118,7 @@
    in the autoconf stage. So config.h suggests the system contains
    HAVE_ELF32_AUXV_T and HAVE_ELF64_AUXV_T but we need the workaround for
    Android. */
-#if (defined(__ANDROID__) && !defined (__mips__)) || !defined(HAVE_ELF32_AUXV_T)
+#if defined(__ANDROID__) || !defined(HAVE_ELF32_AUXV_T)
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
@@ -127,7 +133,7 @@ typedef struct
 } Elf32_auxv_t;
 #endif
 
-#if (defined(__ANDROID__) && !defined (__mips__)) || !defined(HAVE_ELF64_AUXV_T)
+#if defined(__ANDROID__) || !defined(HAVE_ELF64_AUXV_T)
 /* Copied from glibc's elf.h.  */
 typedef struct
 {

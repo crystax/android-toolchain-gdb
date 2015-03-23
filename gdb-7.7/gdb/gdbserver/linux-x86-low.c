@@ -26,7 +26,17 @@
 #include "i387-fp.h"
 #include "i386-low.h"
 #include "i386-xstate.h"
+
+/* Don't include elf/common.h if linux/elf.h got included by gdb_proc_service.h.
+   On Bionic elf/common.h and linux/elf.h have conflicting definitions.
+   NT_X86_XSTATE is still required because not defined by linux/elf.h now.
+*/
+#ifdef ELFMAG0
+#define NT_X86_XSTATE 0x202 /* x86 XSAVE extended state */
+                            /*   note name must be "LINUX".  */
+#else
 #include "elf/common.h"
+#endif
 
 #include "gdb_proc_service.h"
 #include "agent.h"
@@ -96,8 +106,13 @@ static const char *xmltarget_amd64_linux_no_xml = "@<target>\
 </target>";
 #endif
 
+#ifdef HAVE_SYS_REG_H
 #include <sys/reg.h>
+#endif
+#ifdef HAVE_SYS_PROCFS_H
 #include <sys/procfs.h>
+#endif
+
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 
