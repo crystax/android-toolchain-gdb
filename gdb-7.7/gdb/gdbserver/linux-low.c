@@ -1,5 +1,5 @@
 /* Low level interface to ptrace, for the remote server for GDB.
-   Copyright (C) 1995-2014 Free Software Foundation, Inc.
+   Copyright (C) 1995-2015 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -59,6 +59,15 @@
 /* This is new addition to elf.h, and not all host toolchains for Linux/Windows/MacOSX has it,
    so we define it here for now */
 #define DT_MIPS_RLD_MAP2     0x70000035 /* Address of run time loader map, used for debugging. */
+#endif
+
+/* see commit 999577bc08ae1e8207df2fba640e5edae379bbac in toolchain/gdb for additional comments */
+#if defined(__mips__) && defined(HAVE_PREAD64) && defined(__ANDROID__)
+/* NDK doesn't expose pread64 but MIPS' libc.a somehow has it, which
+   passes the test in configure and define HAVE_PREAD64.  Problem is that
+   prototype is missing in header, and later -Werror cause compilation fail.
+   Since it make this far, adding a prototype doesn't hurt. */
+extern ssize_t pread64(int, void *, size_t, off64_t);
 #endif
 
 #ifndef SPUFS_MAGIC
