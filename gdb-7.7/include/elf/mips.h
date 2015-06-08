@@ -145,6 +145,8 @@ START_RELOC_NUMBERS (elf_mips_reloc_type)
   RELOC_NUMBER (R_MICROMIPS_SCN_DISP, 155)
   RELOC_NUMBER (R_MICROMIPS_JALR, 156)
   RELOC_NUMBER (R_MICROMIPS_HI0_LO16, 157)
+  RELOC_NUMBER (R_MICROMIPS_PCHI16, 158)
+  RELOC_NUMBER (R_MICROMIPS_PCLO16, 159)
   /* TLS relocations.  */
   RELOC_NUMBER (R_MICROMIPS_TLS_GD, 162)
   RELOC_NUMBER (R_MICROMIPS_TLS_LDM, 163)
@@ -156,7 +158,15 @@ START_RELOC_NUMBERS (elf_mips_reloc_type)
   /* microMIPS GP- and PC-relative relocations. */
   RELOC_NUMBER (R_MICROMIPS_GPREL7_S2, 172)
   RELOC_NUMBER (R_MICROMIPS_PC23_S2, 173)
-  FAKE_RELOC (R_MICROMIPS_max, 174)
+  RELOC_NUMBER (R_MICROMIPS_PC21_S1, 174)
+  RELOC_NUMBER (R_MICROMIPS_PC26_S1, 175)
+  RELOC_NUMBER (R_MICROMIPS_PC18_S3, 176)
+  RELOC_NUMBER (R_MICROMIPS_PC19_S2, 177)
+  RELOC_NUMBER (R_MICROMIPS_BYTE_LO4, 178)
+  RELOC_NUMBER (R_MICROMIPS_SHORT_LO4, 179)
+  RELOC_NUMBER (R_MICROMIPS_WORD_LO4, 180)
+  RELOC_NUMBER (R_MICROMIPS_BYTE_LO7, 181)
+  FAKE_RELOC (R_MICROMIPS_max, 182)
 
   /* This was a GNU extension used by embedded-PIC.  It was co-opted by
      mips-linux for exception-handling data.  GCC stopped using it in
@@ -288,7 +298,6 @@ END_RELOC_NUMBERS (R_MIPS_maxext)
 #define E_MIPS_MACH_OCTEON	0x008b0000
 #define E_MIPS_MACH_XLR     	0x008c0000
 #define E_MIPS_MACH_OCTEON2	0x008d0000
-#define E_MIPS_MACH_OCTEON3	0x008e0000
 #define E_MIPS_MACH_5400	0x00910000
 #define E_MIPS_MACH_5900	0x00920000
 #define E_MIPS_MACH_5500	0x00980000
@@ -1226,6 +1235,8 @@ extern void bfd_mips_elf_swap_abiflags_v0_out
 #define AFL_ASE_MIPS16       0x00000400 /* MIPS16 ASE.  */
 #define AFL_ASE_MICROMIPS    0x00000800 /* MICROMIPS ASE.  */
 #define AFL_ASE_XPA          0x00001000 /* XPA ASE.  */
+#define AFL_ASE_DSPR3        0x00002000 /* DSP R3 ASE.  */
+#define AFL_ASE_MASK         0x00003fff /* All ASEs.  */
 
 /* Values for the isa_ext word of an ABI flags structure.  */
 
@@ -1247,6 +1258,9 @@ extern void bfd_mips_elf_swap_abiflags_v0_out
 #define AFL_EXT_5500         16  /* NEC VR5500 instruction.  */
 #define AFL_EXT_LOONGSON_2E  17  /* ST Microelectronics Loongson 2E.  */
 #define AFL_EXT_LOONGSON_2F  18  /* ST Microelectronics Loongson 2F.  */
+
+/* Masks for the flags1 word of an ABI flags structure.  */
+#define AFL_FLAGS1_ODDSPREG   1	 /* Uses odd single-precision registers.  */
 
 extern unsigned int bfd_mips_isa_ext (bfd *);
 
@@ -1288,6 +1302,9 @@ enum
 
   /* Using -mips32r2 -mfp64.  */
   Val_GNU_MIPS_ABI_FP_64 = 6,
+
+  /* Using -mips32r2 -mfp64 -mno-odd-spreg.  */
+  Val_GNU_MIPS_ABI_FP_64A = 7,
 
   /* Values defined for Tag_GNU_MIPS_ABI_MSA.  */
 

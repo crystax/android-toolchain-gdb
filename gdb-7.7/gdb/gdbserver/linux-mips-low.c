@@ -18,8 +18,10 @@
 
 #include "server.h"
 #include "linux-low.h"
+#include "elf/common.h"
 
 #include <sys/ptrace.h>
+#include <sys/uio.h>
 #include <endian.h>
 
 #include "mips-linux-watch.h"
@@ -33,6 +35,18 @@ extern const struct target_desc *tdesc_mips_linux;
 void init_registers_mips_dsp_linux (void);
 extern const struct target_desc *tdesc_mips_dsp_linux;
 
+/* Defined in auto-generated file mips-fpu64-linux.c.  */
+void init_registers_mips_fpu64_linux (void);
+extern const struct target_desc *tdesc_mips_fpu64_linux;
+
+/* Defined in auto-generated file mips-fpu64-dsp-linux.c.  */
+void init_registers_mips_fpu64_dsp_linux (void);
+extern const struct target_desc *tdesc_mips_fpu64_dsp_linux;
+
+/* Defined in auto-generated file mips-msa-linux.c.  */
+void init_registers_mips_msa_linux (void);
+extern const struct target_desc *tdesc_mips_msa_linux;
+
 /* Defined in auto-generated file mips64-linux.c.  */
 void init_registers_mips64_linux (void);
 extern const struct target_desc *tdesc_mips64_linux;
@@ -41,21 +55,36 @@ extern const struct target_desc *tdesc_mips64_linux;
 void init_registers_mips64_dsp_linux (void);
 extern const struct target_desc *tdesc_mips64_dsp_linux;
 
+/* Defined in auto-generated file mips64-msa-linux.c.  */
+void init_registers_mips64_msa_linux (void);
+extern const struct target_desc *tdesc_mips64_msa_linux;
+
 #ifdef __mips64
 #define tdesc_mips_linux tdesc_mips64_linux
 #define tdesc_mips_dsp_linux tdesc_mips64_dsp_linux
+#define tdesc_mips_fpu64_linux tdesc_mips64_linux
+#define tdesc_mips_fpu64_dsp_linux tdesc_mips64_dsp_linux
+#define tdesc_mips_msa_linux tdesc_mips64_msa_linux
 #endif
 
 #ifndef PTRACE_GET_THREAD_AREA
 #define PTRACE_GET_THREAD_AREA 25
 #endif
 
+#ifndef PTRACE_GETREGSET
+#define PTRACE_GETREGSET	0x4204
+#endif
+
+#ifndef PTRACE_SETREGSET
+#define PTRACE_SETREGSET	0x4205
+#endif
+
 #ifdef HAVE_SYS_REG_H
 #include <sys/reg.h>
 #endif
 
-#define mips_num_regs 73
-#define mips_dsp_num_regs 80
+#define mips_num_regs 74
+#define mips_dsp_num_regs 81
 
 #include <asm/ptrace.h>
 
@@ -63,6 +92,9 @@ extern const struct target_desc *tdesc_mips64_dsp_linux;
 #define DSP_BASE 71
 #define DSP_CONTROL 77
 #endif
+
+#define ST0_FR	  (1 << 26)
+#define FIR_F64	  (1 << 22)
 
 union mips_register
 {
@@ -81,7 +113,7 @@ union mips_register
   16, 17, 18, 19, 20, 21, 22, 23,					\
   24, 25, 26, 27, 28, 29, 30, 31,					\
 									\
-  -1, MMLO, MMHI, BADVADDR, CAUSE, PC,					\
+  -1, MMLO, MMHI, BADVADDR, CAUSE, PC, -1,				\
 									\
   FPR_BASE,      FPR_BASE + 1,  FPR_BASE + 2,  FPR_BASE + 3,		\
   FPR_BASE + 4,  FPR_BASE + 5,  FPR_BASE + 6,  FPR_BASE + 7,		\
@@ -117,17 +149,73 @@ static unsigned char mips_dsp_regset_bitmap[(mips_dsp_num_regs + 7) / 8] = {
 };
 
 static int have_dsp = -1;
+static int have_fpu64 = -1;
+static int have_msa = -1;
 
-/* Try peeking at an arbitrarily chosen DSP register and pick the available
-   user register set accordingly.  */
+/* Try peeking at registers and pick the available user register set
+   accordingly.  */
 
 static const struct target_desc *
 mips_read_description (void)
 {
+  const struct target_desc *tdescs[2][2] =
+    {
+	/* have_fpu64 = 0	have_fpu64 = 1 */
+	{ tdesc_mips_linux,	tdesc_mips_fpu64_linux },     /* have_dsp = 0 */
+	{ tdesc_mips_dsp_linux,	tdesc_mips_fpu64_dsp_linux }, /* have_dsp = 1 */
+    };
+
+  if (have_fpu64 < 0)
+    {
+      int pid = lwpid_of (get_thread_lwp (current_inferior));
+      long fir;
+
+      /* Try peeking at FIR.F64 bit */
+      errno = 0;
+      fir = ptrace (PTRACE_PEEKUSER, pid, FPC_EIR, 0);
+      switch (errno)
+	{
+	case 0:
+	  have_fpu64 = !!(fir & FIR_F64);
+	  break;
+	case EIO:
+	  have_fpu64 = 0;
+	  have_msa = 0;
+	  break;
+	default:
+	  perror_with_name ("ptrace");
+	  break;
+	}
+    }
+
+  /* Check for MSA, which requires FR=1 */
+  if (have_msa < 0)
+    {
+#ifdef NT_MIPS_MSA
+      int pid = lwpid_of (get_thread_lwp (current_inferior));
+      int res;
+      uint32_t regs[32*4 + 8];
+      struct iovec iov;
+
+      /* this'd probably be better */
+      //have_msa = (getauxval(AT_HWCAP) & 0x2) != 0;
+
+      /* Test MSAIR */
+      iov.iov_base = regs;
+      iov.iov_len = sizeof(regs);
+      res = ptrace (PTRACE_GETREGSET, pid, NT_MIPS_MSA, &iov);
+      have_msa = (res >= 0) && regs[32*4 + 0];
+#else
+      have_msa = 0;
+#endif
+    }
+
   if (have_dsp < 0)
     {
       int pid = lwpid_of (get_thread_lwp (current_inferior));
 
+      /* Try peeking at an arbitrarily chosen DSP register */
+      errno = 0;
       ptrace (PTRACE_PEEKUSER, pid, DSP_CONTROL, 0);
       switch (errno)
 	{
@@ -143,7 +231,8 @@ mips_read_description (void)
 	}
     }
 
-  return have_dsp ? tdesc_mips_dsp_linux : tdesc_mips_linux;
+  return have_msa ? tdesc_mips_msa_linux
+		  : tdescs[have_dsp][have_fpu64];
 }
 
 static void
@@ -721,6 +810,7 @@ mips_store_gregset (struct regcache *regcache, const void *buf)
 {
   const union mips_register *regset = buf;
   int i, use_64bit;
+  int config5 = find_regno (regcache->tdesc, "config5");
 
   use_64bit = (register_size (regcache->tdesc, 0) == 8);
 
@@ -742,28 +832,37 @@ mips_store_gregset (struct regcache *regcache, const void *buf)
 
   mips_supply_register (regcache, use_64bit,
 			find_regno (regcache->tdesc, "restart"), regset + 0);
+
+  if (config5 != -1)
+    {
+      union mips_register reg;
+      reg.reg64 = 0;
+      mips_supply_register (regcache, use_64bit, config5, &reg);
+    }
 }
 
 static void
 mips_fill_fpregset (struct regcache *regcache, void *buf)
 {
   union mips_register *regset = buf;
-  int i, use_64bit, first_fp, big_endian;
+  int i, use_64bit, fp_use_64bit, first_fp, big_endian;
 
   use_64bit = (register_size (regcache->tdesc, 0) == 8);
   first_fp = find_regno (regcache->tdesc, "f0");
+  fp_use_64bit = (register_size (regcache->tdesc, first_fp) >= 8);
   big_endian = (__BYTE_ORDER == __BIG_ENDIAN);
 
   /* See GDB for a discussion of this peculiar layout.  */
   for (i = 0; i < 32; i++)
-    if (use_64bit)
+    if (fp_use_64bit)
       collect_register (regcache, first_fp + i, regset[i].buf);
     else
       collect_register (regcache, first_fp + i,
 			regset[i & ~1].buf + 4 * (big_endian != (i & 1)));
 
   mips_collect_register_32bit (regcache, use_64bit,
-			       find_regno (regcache->tdesc, "fcsr"), regset[32].buf);
+			       find_regno (regcache->tdesc, "fcsr"),
+			       regset[32].buf);
   mips_collect_register_32bit (regcache, use_64bit,
 			       find_regno (regcache->tdesc, "fir"),
 			       regset[32].buf + 4);
@@ -773,15 +872,16 @@ static void
 mips_store_fpregset (struct regcache *regcache, const void *buf)
 {
   const union mips_register *regset = buf;
-  int i, use_64bit, first_fp, big_endian;
+  int i, use_64bit, fp_use_64bit, first_fp, big_endian;
 
   use_64bit = (register_size (regcache->tdesc, 0) == 8);
   first_fp = find_regno (regcache->tdesc, "f0");
+  fp_use_64bit = (register_size (regcache->tdesc, first_fp) >= 8);
   big_endian = (__BYTE_ORDER == __BIG_ENDIAN);
 
   /* See GDB for a discussion of this peculiar layout.  */
   for (i = 0; i < 32; i++)
-    if (use_64bit)
+    if (fp_use_64bit)
       supply_register (regcache, first_fp + i, regset[i].buf);
     else
       supply_register (regcache, first_fp + i,
@@ -796,12 +896,110 @@ mips_store_fpregset (struct regcache *regcache, const void *buf)
 }
 #endif /* HAVE_PTRACE_GETREGS */
 
+#ifdef NT_MIPS_MSA
+static void
+mips_fill_msa_regset (struct regcache *regcache, void *buf)
+{
+  unsigned char *bufp = buf;
+  int i, first_fp, fir, fcsr, msair, msacsr, config5;
+  unsigned char tmp[16];
+
+  if (!have_msa)
+    return;
+
+  first_fp = find_regno (regcache->tdesc, "f0");
+  fir = find_regno (regcache->tdesc, "fir");
+  fcsr = find_regno (regcache->tdesc, "fcsr");
+  msair = find_regno (regcache->tdesc, "msair");
+  msacsr = find_regno (regcache->tdesc, "msacsr");
+  config5 = find_regno (regcache->tdesc, "config5");
+
+  /* full vector including float */
+  if (__BYTE_ORDER == __BIG_ENDIAN)
+    for (i = 0; i < 32; i++)
+      {
+	collect_register (regcache, first_fp + i, tmp);
+	/* swap 64-bit halves, so it's a single word */
+	memcpy(bufp, tmp + 8, 8);
+	memcpy(bufp + 8, tmp, 8);
+	bufp += 16;
+      }
+  else
+    for (i = 0; i < 32; i++)
+      {
+	collect_register (regcache, first_fp + i, bufp);
+	bufp += 16;
+      }
+
+  /* FIXME gonna break with MIPS64 */
+  collect_register (regcache, fir, bufp);
+  bufp += 4;
+  collect_register (regcache, fcsr, bufp);
+  bufp += 4;
+  collect_register (regcache, msair, bufp);
+  bufp += 4;
+  collect_register (regcache, msacsr, bufp);
+  bufp += 4;
+  collect_register (regcache, config5, bufp);
+}
+
+static void
+mips_store_msa_regset (struct regcache *regcache, const void *buf)
+{
+  const unsigned char *bufp = buf;
+  int i, first_fp, fir, fcsr, msair, msacsr, config5;
+  unsigned char tmp[16];
+
+  if (!have_msa)
+    return;
+
+  first_fp = find_regno (regcache->tdesc, "f0");
+  fir = find_regno (regcache->tdesc, "fir");
+  fcsr = find_regno (regcache->tdesc, "fcsr");
+  msair = find_regno (regcache->tdesc, "msair");
+  msacsr = find_regno (regcache->tdesc, "msacsr");
+  config5 = find_regno (regcache->tdesc, "config5");
+
+  /* full vector including float */
+  if (__BYTE_ORDER == __BIG_ENDIAN)
+    for (i = 0; i < 32; i++)
+      {
+	/* swap 64-bit halves, as it's a single word */
+	memcpy(tmp, bufp + 8, 8);
+	memcpy(tmp + 8, bufp, 8);
+	supply_register (regcache, first_fp + i, tmp);
+	bufp += 16;
+      }
+  else
+    for (i = 0; i < 32; i++)
+      {
+	supply_register (regcache, first_fp + i, bufp);
+	bufp += 16;
+      }
+
+  /* FIXME gonna break with MIPS64 */
+  supply_register (regcache, fir, bufp);
+  bufp += 4;
+  supply_register (regcache, fcsr, bufp);
+  bufp += 4;
+  supply_register (regcache, msair, bufp);
+  bufp += 4;
+  supply_register (regcache, msacsr, bufp);
+  bufp += 4;
+  supply_register (regcache, config5, bufp);
+}
+#endif // defined(NT_MIPS_MSA)
+
 static struct regset_info mips_regsets[] = {
 #ifdef HAVE_PTRACE_GETREGS
   { PTRACE_GETREGS, PTRACE_SETREGS, 0, 38 * 8, GENERAL_REGS,
     mips_fill_gregset, mips_store_gregset },
   { PTRACE_GETFPREGS, PTRACE_SETFPREGS, 0, 33 * 8, FP_REGS,
     mips_fill_fpregset, mips_store_fpregset },
+#ifdef NT_MIPS_MSA
+  { PTRACE_GETREGSET, PTRACE_SETREGSET, NT_MIPS_MSA, 34*16, EXTENDED_REGS,
+    mips_fill_msa_regset, mips_store_msa_regset },
+#endif
 #endif /* HAVE_PTRACE_GETREGS */
   { 0, 0, 0, -1, -1, NULL, NULL }
 };
@@ -879,8 +1077,12 @@ initialize_low_arch (void)
   /* Initialize the Linux target descriptions.  */
   init_registers_mips_linux ();
   init_registers_mips_dsp_linux ();
+  init_registers_mips_fpu64_linux ();
+  init_registers_mips_fpu64_dsp_linux ();
+  init_registers_mips_msa_linux ();
   init_registers_mips64_linux ();
   init_registers_mips64_dsp_linux ();
+  init_registers_mips64_msa_linux ();
 
   initialize_regsets_info (&mips_regsets_info);
 }
