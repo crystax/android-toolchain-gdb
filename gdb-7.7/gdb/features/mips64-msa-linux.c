@@ -1,16 +1,17 @@
 /* THIS FILE IS GENERATED.  -*- buffer-read-only: t -*- vi:set ro:
-  Original: mips64-linux.xml */
+  Original: mips64-msa-linux.xml */
 
 #include "defs.h"
 #include "osabi.h"
 #include "target-descriptions.h"
 
-struct target_desc *tdesc_mips64_linux;
+struct target_desc *tdesc_mips64_msa_linux;
 static void
-initialize_tdesc_mips64_linux (void)
+initialize_tdesc_mips64_msa_linux (void)
 {
   struct target_desc *result = allocate_target_description ();
   struct tdesc_feature *feature;
+  struct tdesc_type *field_type;
 
   set_tdesc_architecture (result, bfd_scan_arch ("mips"));
 
@@ -58,43 +59,50 @@ initialize_tdesc_mips64_linux (void)
   tdesc_create_reg (feature, "config5", 38, 1, NULL, 64, "int");
 
   feature = tdesc_create_feature (result, "org.gnu.gdb.mips.fpu");
-  tdesc_create_reg (feature, "f0", 39, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f1", 40, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f2", 41, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f3", 42, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f4", 43, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f5", 44, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f6", 45, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f7", 46, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f8", 47, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f9", 48, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f10", 49, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f11", 50, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f12", 51, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f13", 52, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f14", 53, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f15", 54, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f16", 55, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f17", 56, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f18", 57, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f19", 58, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f20", 59, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f21", 60, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f22", 61, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f23", 62, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f24", 63, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f25", 64, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f26", 65, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f27", 66, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f28", 67, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f29", 68, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f30", 69, 1, NULL, 64, "ieee_double");
-  tdesc_create_reg (feature, "f31", 70, 1, NULL, 64, "ieee_double");
+  field_type = tdesc_named_type (feature, "ieee_double");
+  tdesc_create_vector (feature, "msa128", field_type, 2);
+
+  tdesc_create_reg (feature, "f0", 39, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f1", 40, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f2", 41, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f3", 42, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f4", 43, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f5", 44, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f6", 45, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f7", 46, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f8", 47, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f9", 48, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f10", 49, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f11", 50, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f12", 51, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f13", 52, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f14", 53, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f15", 54, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f16", 55, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f17", 56, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f18", 57, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f19", 58, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f20", 59, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f21", 60, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f22", 61, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f23", 62, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f24", 63, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f25", 64, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f26", 65, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f27", 66, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f28", 67, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f29", 68, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f30", 69, 1, NULL, 128, "msa128");
+  tdesc_create_reg (feature, "f31", 70, 1, NULL, 128, "msa128");
   tdesc_create_reg (feature, "fcsr", 71, 1, "float", 64, "int");
   tdesc_create_reg (feature, "fir", 72, 1, "float", 64, "int");
 
-  feature = tdesc_create_feature (result, "org.gnu.gdb.mips.linux");
-  tdesc_create_reg (feature, "restart", 73, 1, "system", 64, "int");
+  feature = tdesc_create_feature (result, "org.gnu.gdb.mips.msa");
+  tdesc_create_reg (feature, "msacsr", 73, 1, "vector", 64, "int");
+  tdesc_create_reg (feature, "msair", 74, 1, "vector", 64, "int");
 
-  tdesc_mips64_linux = result;
+  feature = tdesc_create_feature (result, "org.gnu.gdb.mips.linux");
+  tdesc_create_reg (feature, "restart", 75, 1, "system", 64, "int");
+
+  tdesc_mips64_msa_linux = result;
 }
