@@ -114,11 +114,7 @@
 # include "linux-btrace.h"
 #endif
 
-/* elf.h is not included because ELFMAG0 is defined linux/elf.h but not checked
-   in the autoconf stage. So config.h suggests the system contains
-   HAVE_ELF32_AUXV_T and HAVE_ELF64_AUXV_T but we need the workaround for
-   Android. */
-#if defined(__ANDROID__) || !defined(HAVE_ELF32_AUXV_T)
+#if !defined(HAVE_ELF32_AUXV_T)
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
@@ -133,7 +129,7 @@ typedef struct
 } Elf32_auxv_t;
 #endif
 
-#if defined(__ANDROID__) || !defined(HAVE_ELF64_AUXV_T)
+#if !defined(HAVE_ELF64_AUXV_T)
 /* Copied from glibc's elf.h.  */
 typedef struct
 {
