@@ -97,17 +97,46 @@ decode_micromips_operand (const char *p)
 	}
       break;
 
+    case '-':
+      switch (p[1])
+	{
+	case 'A': PCREL (19, 0, TRUE, 2, 2, FALSE, FALSE);
+	case 'B': PCREL (18, 0, TRUE, 3, 3, FALSE, FALSE);
+
+	case 'a': INT_ADJ (19, 0, 262143, 2, FALSE);
+	case 'b': INT_ADJ (18, 0, 131071, 3, FALSE);
+	case 'd': MAPPED_REG (3, 1, GP, reg_m16_map);
+	case 'e': OPTIONAL_MAPPED_REG (3, 7, GP, reg_m16_map);
+	case 'm': SPLIT_MAPPED_REG (3, 0, 1, 3, GP, reg_mn_map);
+	case 's': SPECIAL (5, 16, NON_ZERO_REG);
+	case 't': SPECIAL (5, 21, NON_ZERO_REG);
+	case 'u': PREV_CHECK (5, 21, TRUE, FALSE, FALSE, FALSE);
+	case 'v': PREV_CHECK (5, 21, TRUE, TRUE, FALSE, FALSE);
+	case 'w': PREV_CHECK (5, 21, FALSE, TRUE, TRUE, TRUE);
+	case 'x': PREV_CHECK (5, 16, TRUE, FALSE, FALSE, TRUE);
+	case 'y': PREV_CHECK (5, 16, FALSE, TRUE, FALSE, FALSE);
+	}
+      break;
+
     case '+':
       switch (p[1])
 	{
 	case 'A': BIT (5, 6, 0);		 /* (0 .. 31) */
 	case 'B': MSB (5, 11, 1, TRUE, 32);	 /* (1 .. 32), 32-bit op */
 	case 'C': MSB (5, 11, 1, FALSE, 32);	 /* (1 .. 32), 32-bit op */
+	case 'D': REG (5, 16, FP);
 	case 'E': BIT (5, 6, 32);		 /* (32 .. 63) */
 	case 'F': MSB (5, 11, 33, TRUE, 64);	 /* (33 .. 64), 64-bit op */
 	case 'G': MSB (5, 11, 33, FALSE, 64);	 /* (33 .. 64), 64-bit op */
 	case 'H': MSB (5, 11, 1, FALSE, 64);	 /* (1 .. 32), 64-bit op */
+	case 'I': UINT (2, 9);
 	case 'J': HINT (10, 16);
+	case 'K': HINT (4, 6);
+	case 'L': INT_ADJ (4, 4, 15, 2, FALSE);	 /* (0 .. 15) << 2 */
+	case 'N': SPECIAL (2, 8, LWM_SWM_LIST);
+	case 'O': UINT (3, 8);
+	case 'P': INT_ADJ (5, 5, 31, 2, FALSE);	 /* (0 .. 31) << 2 */
+	case 'S': REG (5, 21, FP);
 	case 'T': INT_ADJ (10, 16, 511, 0, FALSE);	/* (-512 .. 511) << 0 */
 	case 'U': INT_ADJ (10, 16, 511, 1, FALSE);	/* (-512 .. 511) << 1 */
 	case 'V': INT_ADJ (10, 16, 511, 2, FALSE);	/* (-512 .. 511) << 2 */
@@ -122,6 +151,8 @@ decode_micromips_operand (const char *p)
 	case 'l': REG (5, 6, MSA_CTRL);
 	case 'n': REG (5, 11, MSA_CTRL);
 	case 'o': SPECIAL (4, 16, IMM_INDEX);
+	case 's': REG (5, 21, GP);
+	case 't': REG (5, 16, GP);
 	case 'u': SPECIAL (3, 16, IMM_INDEX);
 	case 'v': SPECIAL (2, 16, IMM_INDEX);
 	case 'w': SPECIAL (1, 16, IMM_INDEX);
@@ -137,6 +168,11 @@ decode_micromips_operand (const char *p)
 	case '&': SPECIAL (0, 0, IMM_INDEX);
 	case '*': SPECIAL (5, 16, REG_INDEX);
 	case '|': BIT (8, 16, 0);		/* (0 .. 255) */
+	case '\'': BRANCH (26, 0, 1);
+	case '"': BRANCH (21, 0, 1);
+	case ':': SINT (11, 0);
+	case '.': BIT (2, 9, 1);		/* (1 .. 4) */
+	case ';': SPECIAL (10, 16, SAME_RS_RT);
 	}
       break;
 
@@ -223,6 +259,8 @@ decode_micromips_operand (const char *p)
 #define WR_sp	INSN2_WRITE_SP
 #define RD_31	INSN2_READ_GPR_31
 #define RD_pc	INSN2_READ_PC
+#define CTC	INSN2_CONVERTED_TO_COMPACT
+#define NNODS	INSN2_NEXT_NO_DS
 
 /* For 32-bit microMIPS instructions.  */
 #define WR_31	INSN_WRITE_GPR_31
@@ -250,9 +288,16 @@ decode_micromips_operand (const char *p)
 /* Reuse INSN_ISA1 for 32-bit microMIPS ISA.  All instructions in I1
    are accepted as 32-bit microMIPS ISA.
    Reuse INSN_ISA3 for 64-bit microMIPS ISA.  All instructions in I3
-   are accepted as 64-bit microMIPS ISA.  */
+   are accepted as 64-bit microMIPS ISA.
+   Reuse INSN_ISA32R6 for 32-bit microMIPS R6 ISA.  All instructions in I37
+   are accepted as 32-bit microMIPS R6 ISA.
+   Reuse INSN_ISA64R6 for 64-bit microMIPS R6 ISA.  All instructions in I69
+   are accepted as 64-bit microMIPS R6 ISA.  */
 #define I1	INSN_ISA1
 #define I3	INSN_ISA3
+#define I36	INSN_ISA32R5
+#define I37	INSN_ISA32R6
+#define I69	INSN_ISA64R6
 
 /* MIPS DSP ASE support.  */
 #define WR_a	WR_HILO		/* Write DSP accumulators (reuse WR_HILO).  */
@@ -261,12 +306,14 @@ decode_micromips_operand (const char *p)
 #define DSP_VOLA INSN_NO_DELAY_SLOT
 #define D32	ASE_DSP
 #define D33	ASE_DSPR2
+#define D34	ASE_DSPR3
 
 /* MIPS MCU (MicroController) ASE support.  */
 #define MC	ASE_MCU
 
 /* MIPS Enhanced VA Scheme.  */
 #define EVA	ASE_EVA
+#define EVA_R6	ASE_EVA_R6
 
 /* TLB invalidate instruction support.  */
 #define TLBINV	ASE_EVA
@@ -274,10 +321,14 @@ decode_micromips_operand (const char *p)
 /* MIPS Virtualization ASE.  */
 #define IVIRT	ASE_VIRT
 #define IVIRT64	ASE_VIRT64
+#define IVIRT_XPA ASE_VIRT_XPA
 
 /* MSA support.  */
 #define MSA     ASE_MSA
 #define MSA64   ASE_MSA64
+
+/* eXtended Physical Address (XPA) support.  */
+#define XPA     ASE_XPA
 
 const struct mips_opcode micromips_opcodes[] =
 {
@@ -285,14 +336,16 @@ const struct mips_opcode micromips_opcodes[] =
    them first.  The assemblers uses a hash table based on the
    instruction name anyhow.  */
 /* name,		args,		match,      mask,	pinfo,			pinfo2,		membership,	ase,	exclusions */
-{"pref",		"k,~(b)",	0x60002000, 0xfc00f000,	RD_3|LM,		0,		I1,		0,	0 },
+{"pref",		"k,~(b)",	0x60002000, 0xfc00f000,	RD_3|LM,		0,		I1,		0,	I37 },
+{"pref",		"k,+j(b)",	0x60002000, 0xfc00fe00,	RD_3|LM,		0,		I37,		0,	0 },
 {"pref",		"k,A(b)",	0,    (int) M_PREF_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"prefx",		"h,t(b)",	0x540001a0, 0xfc0007ff,	RD_2|RD_3|FP_S|LM,	0,		I1,		0,	0 },
+{"prefx",		"h,t(b)",	0x540001a0, 0xfc0007ff,	RD_2|RD_3|FP_S|LM,	0,		I1,		0,	I37 },
 {"nop",			"",		    0x0c00,     0xffff,	0,			INSN2_ALIAS,	I1,		0,	0 },
 {"nop",			"",		0x00000000, 0xffffffff,	0,			INSN2_ALIAS,	I1,		0,	0 }, /* sll */
 {"ssnop",		"",		0x00000800, 0xffffffff,	0,			INSN2_ALIAS,	I1,		0,	0 }, /* sll */
 {"ehb",			"",		0x00001800, 0xffffffff,	0,			INSN2_ALIAS,	I1,		0,	0 }, /* sll */
 {"pause",		"",		0x00002800, 0xffffffff,	0,			INSN2_ALIAS,	I1,		0,	0 }, /* sll */
+{"lapc",		"t,-A",		0x78000000, 0xfc180000, WR_1,			RD_pc,		I37,		0,	0 },
 {"li",			"md,mI",	    0xec00,     0xfc00,	WR_1,			0,		I1,		0,	0 },
 {"li",			"t,j",		0x30000000, 0xfc1f0000,	WR_1,			INSN2_ALIAS,	I1,		0,	0 }, /* addiu */
 {"li",			"t,i",		0x50000000, 0xfc1f0000,	WR_1,			INSN2_ALIAS,	I1,		0,	0 }, /* ori */
@@ -302,45 +355,56 @@ const struct mips_opcode micromips_opcodes[] =
 {"move",		"d,s",		0x58000150, 0xffe007ff,	WR_1|RD_2,		INSN2_ALIAS,	I3,		0,	0 }, /* daddu */
 {"move",		"d,s",		0x00000150, 0xffe007ff,	WR_1|RD_2,		INSN2_ALIAS,	I1,		0,	0 }, /* addu */
 {"move",		"d,s",		0x00000290, 0xffe007ff,	WR_1|RD_2,		INSN2_ALIAS,	I1,		0,	0 }, /* or */
-{"b",			"mD",		    0xcc00,     0xfc00,	UBD,			0,		I1,		0,	0 },
-{"b",			"p",		0x94000000, 0xffff0000,	UBD,			INSN2_ALIAS,	I1,		0,	0 }, /* beq 0, 0 */
-{"b",			"p",		0x40400000, 0xffff0000,	UBD,			INSN2_ALIAS,	I1,		0,	0 }, /* bgez 0 */
-{"bal",			"p",		0x40600000, 0xffff0000,	WR_31|UBD,		INSN2_ALIAS|BD32, I1,		0,	0 }, /* bgezal 0 */
-{"bals",		"p",		0x42600000, 0xffff0000,	WR_31|UBD,		INSN2_ALIAS|BD16, I1,		0,	0 }, /* bgezals 0 */
-{"bc",			"p",		0x40e00000, 0xffff0000,	NODS,			INSN2_ALIAS|UBR,  I1,		0,	0 }, /* beqzc 0 */
+{"b",			"mD",		    0xcc00,     0xfc00,	UBD,			0,		I1,		0,	I37 },
+{"b",			"mD",		    0xcc00,     0xfc00,	0,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* bc */
+{"b",			"p",		0x94000000, 0xffff0000,	UBD,			INSN2_ALIAS,	I1,		0,	I37 }, /* beq 0, 0 */
+{"b",			"+'",		0x94000000, 0xfc000000,	0,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* bc */
+{"b",			"p",		0x40400000, 0xffff0000,	UBD,			INSN2_ALIAS,	I1,		0,	I37 }, /* bgez 0 */
+{"bal",	 		"+'",		0xb4000000, 0xfc000000,	WR_31,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* balc */
+{"bal",			"p",		0x40600000, 0xffff0000,	WR_31|UBD,		INSN2_ALIAS|BD32, I1,		0,	I37 }, /* bgezal 0 */
+{"balc",		"+'",		0xb4000000, 0xfc000000,	WR_31,			UBR,		I37,		0,	0 },
+{"bals",		"p",		0x42600000, 0xffff0000,	WR_31|UBD,		INSN2_ALIAS|BD16, I1,		0,	I37 }, /* bgezals 0 */
+{"bc",			"mD",		    0xcc00,     0xfc00,	0,			UBR,		I37,		0,	0 },
+{"bc",			"+'",		0x94000000, 0xfc000000,	0,			UBR,		I37,		0,	0 },
+{"bc",			"p",		0x40e00000, 0xffff0000,	NODS,			INSN2_ALIAS|UBR,  I1,		0,	I37 }, /* beqzc 0 */
 
 {"abs",			"d,v",		0,    (int) M_ABS,	INSN_MACRO,		0,		I1,		0,	0 },
 {"abs.d",		"T,V",		0x5400237b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
 {"abs.s",		"T,V",		0x5400037b, 0xfc00ffff,	WR_1|RD_2|FP_S,		0,		I1,		0,	0 },
-{"abs.ps",		"T,V",		0x5400437b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
+{"abs.ps",		"T,V",		0x5400437b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	I37 },
 {"aclr",		"\\,~(b)",	0x2000b000, 0xff00f000,	RD_3|LM|SM|NODS,	0,		0,		MC,	0 },
 {"aclr",		"\\,A(b)",	0,    (int) M_ACLR_AB,	INSN_MACRO,		0,		0,		MC,	0 },
 {"add",			"d,v,t",	0x00000110, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
-{"add",			"t,r,I",	0,    (int) M_ADD_I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"add",			"t,r,I",	0,    (int) M_ADD_I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"add.d",		"D,V,T",	0x54000130, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
 {"add.s",		"D,V,T",	0x54000030, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I1,		0,	0 },
-{"add.ps",		"D,V,T",	0x54000230, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"addi",		"t,r,j",	0x10000000, 0xfc000000,	WR_1|RD_2,		0,		I1,		0,	0 },
+{"add.ps",		"D,V,T",	0x54000230, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"addi",		"t,r,j",	0x10000000, 0xfc000000,	WR_1|RD_2,		0,		I1,		0,	I37 },
 {"addiu",		"mp,mj,mZ",	    0x0c00,     0xfc00,	WR_1|RD_2,		0,		I1,		0,	0 }, /* move */
 {"addiu",		"md,ms,mW",	    0x6c01,     0xfc01,	WR_1|RD_2,		0,		I1,		0,	0 }, /* addiur1sp */
 {"addiu",		"md,mc,mB",	    0x6c00,     0xfc01,	WR_1|RD_2,		0,		I1,		0,	0 }, /* addiur2 */
 {"addiu",		"ms,mt,mY",	    0x4c01,     0xfc01,	MOD_1,			0,		I1,		0,	0 }, /* addiusp */
 {"addiu",		"mp,mt,mX",	    0x4c00,     0xfc01,	MOD_1,			0,		I1,		0,	0 }, /* addius5 */
-{"addiu",		"mb,mr,mQ",	0x78000000, 0xfc000000,	WR_1,			RD_pc,		I1,		0,	0 }, /* addiupc */
+{"addiu",		"mb,mr,mQ",	0x78000000, 0xfc000000,	WR_1,			RD_pc,		I1,		0,	I37 }, /* addiupc */
 {"addiu",		"t,r,j",	0x30000000, 0xfc000000,	WR_1|RD_2,		0,		I1,		0,	0 },
-{"addiupc",		"mb,mQ",	0x78000000, 0xfc000000,	WR_1,			RD_pc,		I1,		0,	0 },
+{"addiu",		"t,mr,-a",	0x78000000, 0xfc180000, WR_1,			RD_pc,		I37,		0,	0 },
+{"addiupc",		"t,-a",		0x78000000, 0xfc180000, WR_1,			RD_pc,		I37,		0,	0 },
+{"addiupc",		"mb,mQ",	0x78000000, 0xfc000000,	WR_1,			RD_pc,		I1,		0,	I37 },
 {"addiur1sp",		"md,mW",	    0x6c01,     0xfc01,	WR_1,			RD_sp,		I1,		0,	0 },
 {"addiur2",		"md,mc,mB",	    0x6c00,     0xfc01,	WR_1|RD_2,		0,		I1,		0,	0 },
 {"addiusp",		"mY",		    0x4c01,     0xfc01,	0,			WR_sp|RD_sp,	I1,		0,	0 },
 {"addius5",		"mp,mX",	    0x4c00,     0xfc01,	MOD_1,			0,		I1,		0,	0 },
 {"addu",		"mp,mj,mz",	    0x0c00,     0xfc00,	WR_1|RD_2,		0,		I1,		0,	0 }, /* move */
 {"addu",		"mp,mz,mj",	    0x0c00,     0xfc00,	WR_1|RD_3,		0,		I1,		0,	0 }, /* move */
-{"addu",		"md,me,ml",	    0x0400,     0xfc01,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
+{"addu",		"-d,-e,ml",	    0x0400,     0xfc01,	WR_1|RD_2|RD_3,		0,		I37,		0,	0 },
+{"addu",		"md,me,ml",	    0x0400,     0xfc01,	WR_1|RD_2|RD_3,		0,		I1,		0,	I37 },
 {"addu",		"d,v,t",	0x00000150, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
 {"addu",		"t,r,I",	0,    (int) M_ADDU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"alnv.ps",		"D,V,T,y",	0x54000019, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
-{"and",			"mf,mt,mg",	    0x4480,     0xffc0,	MOD_1|RD_3,		0,		I1,		0,	0 },
-{"and",			"mf,mg,mx",	    0x4480,     0xffc0,	MOD_1|RD_2,		0,		I1,		0,	0 },
+{"alnv.ps",		"D,V,T,y",	0x54000019, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
+{"and",			"md,mt,ml",	    0x4401,     0xfc0f,	MOD_1|RD_3,		0,		I37,		0,	0 },
+{"and",			"md,ml,mx",	    0x4401,     0xfc0f,	MOD_1|RD_2,		0,		I37,		0,	0 },
+{"and",			"mf,mt,mg",	    0x4480,     0xffc0,	MOD_1|RD_3,		0,		I1,		0,	I37 },
+{"and",			"mf,mg,mx",	    0x4480,     0xffc0,	MOD_1|RD_2,		0,		I1,		0,	I37 },
 {"and",			"d,v,t",	0x00000250, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
 {"and",			"t,r,I",	0,    (int) M_AND_I,	INSN_MACRO,		0,		I1,		0,	0 },
 {"andi",		"md,mc,mC",	    0x2c00,     0xfc00,	WR_1|RD_2,		0,		I1,		0,	0 },
@@ -349,190 +413,229 @@ const struct mips_opcode micromips_opcodes[] =
 {"aset",		"\\,A(b)",	0,    (int) M_ASET_AB,	INSN_MACRO,		0,		0,		MC,	0 },
 /* b is at the top of the table.  */
 /* bal is at the top of the table.  */
-{"bc1f",		"p",		0x43800000, 0xffff0000,	RD_CC|CBD|FP_S,		0,		I1,		0,	0 },
-{"bc1f",		"N,p",		0x43800000, 0xffe30000,	RD_CC|CBD|FP_S,		0,		I1,		0,	0 },
-{"bc1fl",		"p",		0,    (int) M_BC1FL,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"bc1fl",		"N,p",		0,    (int) M_BC1FL,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"bc2f",		"p",		0x42800000, 0xffff0000,	RD_CC|CBD,		0,		I1,		0,	0 },
-{"bc2f",		"N,p",		0x42800000, 0xffe30000,	RD_CC|CBD,		0,		I1,		0,	0 },
-{"bc2fl",		"p",		0,    (int) M_BC2FL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bc2fl",		"N,p",		0,    (int) M_BC2FL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bc1t",		"p",		0x43a00000, 0xffff0000,	RD_CC|CBD|FP_S,		0,		I1,		0,	0 },
-{"bc1t",		"N,p",		0x43a00000, 0xffe30000,	RD_CC|CBD|FP_S,		0,		I1,		0,	0 },
-{"bc1tl",		"p",		0,    (int) M_BC1TL,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"bc1tl",		"N,p",		0,    (int) M_BC1TL,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"bc2t",		"p",		0x42a00000, 0xffff0000,	RD_CC|CBD,		0,		I1,		0,	0 },
-{"bc2t",		"N,p",		0x42a00000, 0xffe30000,	RD_CC|CBD,		0,		I1,		0,	0 },
-{"bc2tl",		"p",		0,    (int) M_BC2TL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bc2tl",		"N,p",		0,    (int) M_BC2TL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"beqz",		"md,mE",	    0x8c00,     0xfc00,	RD_1|CBD,		0,		I1,		0,	0 },
-{"beqz",		"s,p",		0x94000000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	0 },
-{"beqzc",		"s,p",		0x40e00000, 0xffe00000,	RD_1|NODS,		CBR,		I1,		0,	0 },
-{"beqzl",		"s,p",		0,    (int) M_BEQL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"beq",			"md,mz,mE",	    0x8c00,     0xfc00,	RD_1|CBD,		0,		I1,		0,	0 }, /* beqz */
-{"beq",			"mz,md,mE",	    0x8c00,     0xfc00,	RD_2|CBD,		0,		I1,		0,	0 }, /* beqz */
-{"beq",			"s,t,p",	0x94000000, 0xfc000000,	RD_1|RD_2|CBD,		0,		I1,		0,	0 },
+{"bc1f",		"p",		0x43800000, 0xffff0000,	RD_CC|CBD|FP_S,		0,		I1,		0,	I37 },
+{"bc1f",		"N,p",		0x43800000, 0xffe30000,	RD_CC|CBD|FP_S,		0,		I1,		0,	I37 },
+{"bc1fl",		"p",		0,    (int) M_BC1FL,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	I37 },
+{"bc1fl",		"N,p",		0,    (int) M_BC1FL,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	I37 },
+{"bc2f",		"p",		0x42800000, 0xffff0000,	RD_CC|CBD,		0,		I1,		0,	I37 },
+{"bc2f",		"N,p",		0x42800000, 0xffe30000,	RD_CC|CBD,		0,		I1,		0,	I37 },
+{"bc2fl",		"p",		0,    (int) M_BC2FL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bc2fl",		"N,p",		0,    (int) M_BC2FL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bc1t",		"p",		0x43a00000, 0xffff0000,	RD_CC|CBD|FP_S,		0,		I1,		0,	I37 },
+{"bc1t",		"N,p",		0x43a00000, 0xffe30000,	RD_CC|CBD|FP_S,		0,		I1,		0,	I37 },
+{"bc1tl",		"p",		0,    (int) M_BC1TL,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	I37 },
+{"bc1tl",		"N,p",		0,    (int) M_BC1TL,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	I37 },
+{"bc2t",		"p",		0x42a00000, 0xffff0000,	RD_CC|CBD,		0,		I1,		0,	I37 },
+{"bc2t",		"N,p",		0x42a00000, 0xffe30000,	RD_CC|CBD,		0,		I1,		0,	I37 },
+{"bc2tl",		"p",		0,    (int) M_BC2TL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bc2tl",		"N,p",		0,    (int) M_BC2TL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"beqz",		"md,mE",	    0x8c00,     0xfc00,	RD_1|CBD,		0,		I1,		0,	I37 },
+{"beqz",		"md,mE",	    0x8c00,     0xfc00,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* beqzc */
+{"beqz",		"s,p",		0x94000000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	I37 },
+{"beqz",		"-t,+\"",	0x80000000, 0xfc000000,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* beqzc */
+{"beqzc",		"md,mE",	    0x8c00,     0xfc00,	RD_1,			CBR,		I37,		0,	0 },
+{"beqzc",		"-t,+\"",	0x80000000, 0xfc000000,	RD_1,			CBR,		I37,		0,	0 },
+{"beqzc",		"s,p",		0x40e00000, 0xffe00000,	RD_1|NODS,		CBR,		I1,		0,	I37 },
+{"beqzl",		"s,p",		0,    (int) M_BEQL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"beq",			"md,mz,mE",	    0x8c00,     0xfc00,	RD_1|CBD,		0,		I1,		0,	I37 }, /* beqz */
+{"beq",			"mz,md,mE",	    0x8c00,     0xfc00,	RD_2|CBD,		0,		I1,		0,	I37 }, /* beqz */
+{"beq",			"md,mz,mE",	    0x8c00,     0xfc00,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* beqzc16 */
+{"beq",			"mz,md,mE",	    0x8c00,     0xfc00,	RD_2,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* beqzc16 */
+{"beq",			"-t,z,+\"",	0x80000000, 0xfc000000,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* beqzc */
+{"beq",			"z,-t,+\"",	0x80000000, 0xfc000000,	RD_2,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* beqzc */
+{"beq",			"-s,-u,p",	0x74000000, 0xfc000000,	RD_1|RD_2,		INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* beqc */
+{"beq",			"t,-y,p",	0x74000000, 0xfc000000,	RD_1|RD_2,		INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* beqc */
+{"beq",			"s,t,p",	0x94000000, 0xfc000000,	RD_1|RD_2|CBD,		0,		I1,		0,	I37 },
 {"beq",			"s,I,p",	0,    (int) M_BEQ_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"beql",		"s,t,p",	0,    (int) M_BEQL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"beql",		"s,I,p",	0,    (int) M_BEQL_I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"bovc",		"s,-w,p",	0x74000000, 0xfc000000,	RD_1|RD_2,		CBR,		I37,		0,	0 },
+{"bovc",		"t,-x,p",	0x74000000, 0xfc000000,	RD_1|RD_2,		INSN2_ALIAS|CBR, I37,		0,	0 },
+{"beqzalc",		"-t,p",		0x74000000, 0xfc1f0000,	RD_1|WR_31,		CBR,		I37,		0,	0 },
+{"beqc",		"-s,-u,p",	0x74000000, 0xfc000000,	RD_1|RD_2,		CBR,		I37,		0,	0 },
+{"beqc",		"t,-y,p",	0x74000000, 0xfc000000,	RD_1|RD_2,		INSN2_ALIAS|CBR, I37,		0,	0 },
+{"beql",		"s,t,p",	0,    (int) M_BEQL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"beql",		"s,I,p",	0,    (int) M_BEQL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"bge",			"s,t,p",	0,    (int) M_BGE,	INSN_MACRO,		0,		I1,		0,	0 },
 {"bge",			"s,I,p",	0,    (int) M_BGE_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgel",		"s,t,p",	0,    (int) M_BGEL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgel",		"s,I,p",	0,    (int) M_BGEL_I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"bgel",		"s,t,p",	0,    (int) M_BGEL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bgel",		"s,I,p",	0,    (int) M_BGEL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"bgeu",		"s,t,p",	0,    (int) M_BGEU,	INSN_MACRO,		0,		I1,		0,	0 },
 {"bgeu",		"s,I,p",	0,    (int) M_BGEU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgeul",		"s,t,p",	0,    (int) M_BGEUL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgeul",		"s,I,p",	0,    (int) M_BGEUL_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgez",		"s,p",		0x40400000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	0 },
-{"bgezl",		"s,p",		0,    (int) M_BGEZL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgezal",		"s,p",		0x40600000, 0xffe00000,	RD_1|WR_31|CBD,		BD32,		I1,		0,	0 },
-{"bgezals",		"s,p",		0x42600000, 0xffe00000,	RD_1|WR_31|CBD,		BD16,		I1,		0,	0 },
-{"bgezall",		"s,p",		0,    (int) M_BGEZALL,	INSN_MACRO,		0,		I1,		0,	0 },
+{"bgeul",		"s,t,p",	0,    (int) M_BGEUL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bgeul",		"s,I,p",	0,    (int) M_BGEUL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bgez",		"s,p",		0x40400000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	I37 },
+{"bgez",		"+;,p",		0xf4000000, 0xfc000000,	RD_1,			INSN2_ALIAS|CBR|CTC, I37, 	0,	0 }, /* bgezc */
+{"bgezl",		"s,p",		0,    (int) M_BGEZL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bgezal",		"s,p",		0x40600000, 0xffe00000,	RD_1|WR_31|CBD,		BD32,		I1,		0,	I37 },
+{"bgezal",		"+;,p",		0xc0000000, 0xfc000000,	RD_1|WR_31,		INSN2_ALIAS|CBR|CTC,		I37,		0,	0 }, /* bgezalc */
+{"bgezals",		"s,p",		0x42600000, 0xffe00000,	RD_1|WR_31|CBD,		BD16,		I1,		0,	I37 },
+{"bgezall",		"s,p",		0,    (int) M_BGEZALL,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"bgt",			"s,t,p",	0,    (int) M_BGT,	INSN_MACRO,		0,		I1,		0,	0 },
 {"bgt",			"s,I,p",	0,    (int) M_BGT_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgtl",		"s,t,p",	0,    (int) M_BGTL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgtl",		"s,I,p",	0,    (int) M_BGTL_I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"bgtl",		"s,t,p",	0,    (int) M_BGTL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bgtl",		"s,I,p",	0,    (int) M_BGTL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"bgtu",		"s,t,p",	0,    (int) M_BGTU,	INSN_MACRO,		0,		I1,		0,	0 },
 {"bgtu",		"s,I,p",	0,    (int) M_BGTU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgtul",		"s,t,p",	0,    (int) M_BGTUL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgtul",		"s,I,p",	0,    (int) M_BGTUL_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bgtz",		"s,p",		0x40c00000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	0 },
-{"bgtzl",		"s,p",		0,    (int) M_BGTZL,	INSN_MACRO,		0,		I1,		0,	0 },
+{"bgtul",		"s,t,p",	0,    (int) M_BGTUL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bgtul",		"s,I,p",	0,    (int) M_BGTUL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bgtz",		"s,p",		0x40c00000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	I37 },
+{"bgtz",		"-t,p",		0xd4000000, 0xfc1f0000,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bgtzc */
+{"bgtzl",		"s,p",		0,    (int) M_BGTZL,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"ble",			"s,t,p",	0,    (int) M_BLE,	INSN_MACRO,		0,		I1,		0,	0 },
 {"ble",			"s,I,p",	0,    (int) M_BLE_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"blel",		"s,t,p",	0,    (int) M_BLEL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"blel",		"s,I,p",	0,    (int) M_BLEL_I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"blel",		"s,t,p",	0,    (int) M_BLEL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"blel",		"s,I,p",	0,    (int) M_BLEL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"bleu",		"s,t,p",	0,    (int) M_BLEU,	INSN_MACRO,		0,		I1,		0,	0 },
 {"bleu",		"s,I,p",	0,    (int) M_BLEU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bleul",		"s,t,p",	0,    (int) M_BLEUL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bleul",		"s,I,p",	0,    (int) M_BLEUL_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"blez",		"s,p",		0x40800000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	0 },
-{"blezl",		"s,p",		0,    (int) M_BLEZL,	INSN_MACRO,		0,		I1,		0,	0 },
+{"bleul",		"s,t,p",	0,    (int) M_BLEUL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bleul",		"s,I,p",	0,    (int) M_BLEUL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"blez",		"s,p",		0x40800000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	I37 },
+{"blez",		"-t,p",		0xf4000000, 0xfc1f0000,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* blezc */
+{"blezl",		"s,p",		0,    (int) M_BLEZL,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"blt",			"s,t,p",	0,    (int) M_BLT,	INSN_MACRO,		0,		I1,		0,	0 },
 {"blt",			"s,I,p",	0,    (int) M_BLT_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bltl",		"s,t,p",	0,    (int) M_BLTL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bltl",		"s,I,p",	0,    (int) M_BLTL_I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"bltl",		"s,t,p",	0,    (int) M_BLTL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bltl",		"s,I,p",	0,    (int) M_BLTL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"bltu",		"s,t,p",	0,    (int) M_BLTU,	INSN_MACRO,		0,		I1,		0,	0 },
 {"bltu",		"s,I,p",	0,    (int) M_BLTU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bltul",		"s,t,p",	0,    (int) M_BLTUL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bltul",		"s,I,p",	0,    (int) M_BLTUL_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bltz",		"s,p",		0x40000000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	0 },
-{"bltzl",		"s,p",		0,    (int) M_BLTZL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bltzal",		"s,p",		0x40200000, 0xffe00000,	RD_1|WR_31|CBD,		BD32,		I1,		0,	0 },
-{"bltzals",		"s,p",		0x42200000, 0xffe00000,	RD_1|WR_31|CBD,		BD16,		I1,		0,	0 },
-{"bltzall",		"s,p",		0,    (int) M_BLTZALL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bnez",		"md,mE",	    0xac00,     0xfc00,	RD_1|CBD,		0,		I1,		0,	0 },
-{"bnez",		"s,p",		0xb4000000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	0 },
-{"bnezc",		"s,p",		0x40a00000, 0xffe00000,	RD_1|NODS,		CBR,		I1,		0,	0 },
-{"bnezl",		"s,p",		0,    (int) M_BNEL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bne",			"md,mz,mE",	    0xac00,     0xfc00,	RD_1|CBD,		0,		I1,		0,	0 }, /* bnez */
-{"bne",			"mz,md,mE",	    0xac00,     0xfc00,	RD_2|CBD,		0,		I1,		0,	0 }, /* bnez */
-{"bne",			"s,t,p",	0xb4000000, 0xfc000000,	RD_1|RD_2|CBD,		0,		I1,		0,	0 },
+{"bltul",		"s,t,p",	0,    (int) M_BLTUL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bltul",		"s,I,p",	0,    (int) M_BLTUL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bltz",		"s,p",		0x40000000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	I37 },
+{"bltz",		"+;,p",		0xd4000000, 0xfc000000,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bltzc */
+{"bltzl",		"s,p",		0,    (int) M_BLTZL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bltzal",		"s,p",		0x40200000, 0xffe00000,	RD_1|WR_31|CBD,		BD32,		I1,		0,	I37 },
+{"bltzal",		"+;,p",		0xe0000000, 0xfc000000,	RD_1|WR_31,		INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bltzalc */
+{"bltzals",		"s,p",		0x42200000, 0xffe00000,	RD_1|WR_31|CBD,		BD16,		I1,		0,	I37 },
+{"bltzall",		"s,p",		0,    (int) M_BLTZALL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bnez",		"md,mE",	    0xac00,     0xfc00,	RD_1|CBD,		0,		I1,		0,	I37 },
+{"bnez",		"md,mE",	    0xac00,     0xfc00,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bnezc */
+{"bnez",		"s,p",		0xb4000000, 0xffe00000,	RD_1|CBD,		0,		I1,		0,	I37 },
+{"bnez",		"-t,+\"",	0xa0000000, 0xfc000000,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bnezc */
+{"bnezc",		"md,mE",	    0xac00,     0xfc00,	RD_1,			CBR,		I37,		0,	0 },
+{"bnezc",		"-t,+\"",	0xa0000000, 0xfc000000,	RD_1,			CBR,		I37,		0,	0 },
+{"bnezc",		"s,p",		0x40a00000, 0xffe00000,	RD_1|NODS,		CBR,		I1,		0,	I37 },
+{"bnezl",		"s,p",		0,    (int) M_BNEL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bne",			"md,mz,mE",	    0xac00,     0xfc00,	RD_1|CBD,		0,		I1,		0,	I37 }, /* bnez */
+{"bne",			"mz,md,mE",	    0xac00,     0xfc00,	RD_2|CBD,		0,		I1,		0,	I37 }, /* bnez */
+{"bne",			"md,mz,mE",	    0xac00,     0xfc00,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bnezc16 */
+{"bne",			"mz,md,mE",	    0xac00,     0xfc00,	RD_2,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bnezc16 */
+{"bne",			"s,t,p",	0xb4000000, 0xfc000000,	RD_1|RD_2|CBD,		0,		I1,		0,	I37 },
 {"bne",			"s,I,p",	0,    (int) M_BNE_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bnel",		"s,t,p",	0,    (int) M_BNEL,	INSN_MACRO,		0,		I1,		0,	0 },
-{"bnel",		"s,I,p",	0,    (int) M_BNEL_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"break",		"",		    0x4680,     0xffff,	TRAP,			0,		I1,		0,	0 },
+{"bne",			"-t,z,+\"",	0xa0000000, 0xfc000000,	RD_1,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bnezc */
+{"bne",			"z,-t,+\"",	0xa0000000, 0xfc000000,	RD_2,			INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bnezc */
+{"bne",			"-s,-u,p",	0x7c000000, 0xfc000000,	RD_1|RD_2,		INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bnec */
+{"bne",			"t,-y,p",	0x7c000000, 0xfc000000,	RD_1|RD_2,		INSN2_ALIAS|CBR|CTC, I37,	0,	0 }, /* bnec */
+{"bnvc",		"s,-w,p",	0x7c000000, 0xfc000000,	RD_1|RD_2,		CBR,		I37,		0,	0 },
+{"bnvc",		"t,-x,p",	0x7c000000, 0xfc000000,	RD_1|RD_2,		INSN2_ALIAS|CBR, I37,		0,	0 },
+{"bnezalc",		"-t,p",		0x7c000000, 0xfc1f0000,	RD_1|WR_31,		CBR,		I37,		0,	0 },
+{"bnec",		"-s,-u,p",	0x7c000000, 0xfc000000,	RD_1|RD_2,		CBR,		I37,		0,	0 },
+{"bnec",		"t,-y,p",	0x7c000000, 0xfc000000,	RD_1|RD_2,		INSN2_ALIAS|CBR, I37,		0,	0 },
+{"bnel",		"s,t,p",	0,    (int) M_BNEL,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"bnel",		"s,I,p",	0,    (int) M_BNEL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"break",		"",		    0x441b,     0xffff,	TRAP,			0,		I37,		0,	0 },
+{"break",		"",		    0x4680,     0xffff,	TRAP,			0,		I1,		0,	I37 },
 {"break",		"",		0x00000007, 0xffffffff,	TRAP,			0,		I1,		0,	0 },
-{"break",		"mF",		    0x4680,     0xfff0,	TRAP,			0,		I1,		0,	0 },
+{"break",		"+K",		    0x441b,     0xfc3f,	TRAP,			0,		I37,		0,	0 },
+{"break",		"mF",		    0x4680,     0xfff0,	TRAP,			0,		I1,		0,	I37 },
 {"break",		"c",		0x00000007, 0xfc00ffff,	TRAP,			0,		I1,		0,	0 },
 {"break",		"c,q",		0x00000007, 0xfc00003f,	TRAP,			0,		I1,		0,	0 },
-{"c.f.d",		"S,T",		0x5400043c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.f.d",		"M,S,T",	0x5400043c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.f.s",		"S,T",		0x5400003c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.f.s",		"M,S,T",	0x5400003c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.f.ps",		"S,T",		0x5400083c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.f.ps",		"M,S,T",	0x5400083c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.un.d",		"S,T",		0x5400047c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.un.d",		"M,S,T",	0x5400047c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.un.s",		"S,T",		0x5400007c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.un.s",		"M,S,T",	0x5400007c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.un.ps",		"S,T",		0x5400087c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.un.ps",		"M,S,T",	0x5400087c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.eq.d",		"S,T",		0x540004bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.eq.d",		"M,S,T",	0x540004bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.eq.s",		"S,T",		0x540000bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.eq.s",		"M,S,T",	0x540000bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.eq.ps",		"S,T",		0x540008bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.eq.ps",		"M,S,T",	0x540008bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ueq.d",		"S,T",		0x540004fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ueq.d",		"M,S,T",	0x540004fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ueq.s",		"S,T",		0x540000fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ueq.s",		"M,S,T",	0x540000fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ueq.ps",		"S,T",		0x540008fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ueq.ps",		"M,S,T",	0x540008fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.olt.d",		"S,T",		0x5400053c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.olt.d",		"M,S,T",	0x5400053c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.olt.s",		"S,T",		0x5400013c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.olt.s",		"M,S,T",	0x5400013c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.olt.ps",		"S,T",		0x5400093c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.olt.ps",		"M,S,T",	0x5400093c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ult.d",		"S,T",		0x5400057c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ult.d",		"M,S,T",	0x5400057c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ult.s",		"S,T",		0x5400017c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ult.s",		"M,S,T",	0x5400017c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ult.ps",		"S,T",		0x5400097c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ult.ps",		"M,S,T",	0x5400097c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ole.d",		"S,T",		0x540005bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ole.d",		"M,S,T",	0x540005bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ole.s",		"S,T",		0x540001bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ole.s",		"M,S,T",	0x540001bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ole.ps",		"S,T",		0x540009bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ole.ps",		"M,S,T",	0x540009bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ule.d",		"S,T",		0x540005fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ule.d",		"M,S,T",	0x540005fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ule.s",		"S,T",		0x540001fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ule.s",		"M,S,T",	0x540001fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ule.ps",		"S,T",		0x540009fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ule.ps",		"M,S,T",	0x540009fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.sf.d",		"S,T",		0x5400063c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.sf.d",		"M,S,T",	0x5400063c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.sf.s",		"S,T",		0x5400023c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.sf.s",		"M,S,T",	0x5400023c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.sf.ps",		"S,T",		0x54000a3c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.sf.ps",		"M,S,T",	0x54000a3c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngle.d",		"S,T",		0x5400067c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngle.d",		"M,S,T",	0x5400067c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngle.s",		"S,T",		0x5400027c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ngle.s",		"M,S,T",	0x5400027c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ngle.ps",		"S,T",		0x54000a7c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngle.ps",		"M,S,T",	0x54000a7c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.seq.d",		"S,T",		0x540006bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.seq.d",		"M,S,T",	0x540006bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.seq.s",		"S,T",		0x540002bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.seq.s",		"M,S,T",	0x540002bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.seq.ps",		"S,T",		0x54000abc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.seq.ps",		"M,S,T",	0x54000abc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngl.d",		"S,T",		0x540006fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngl.d",		"M,S,T",	0x540006fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngl.s",		"S,T",		0x540002fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ngl.s",		"M,S,T",	0x540002fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ngl.ps",		"S,T",		0x54000afc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngl.ps",		"M,S,T",	0x54000afc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.lt.d",		"S,T",		0x5400073c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.lt.d",		"M,S,T",	0x5400073c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.lt.s",		"S,T",		0x5400033c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.lt.s",		"M,S,T",	0x5400033c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.lt.ps",		"S,T",		0x54000b3c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.lt.ps",		"M,S,T",	0x54000b3c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.nge.d",		"S,T",		0x5400077c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.nge.d",		"M,S,T",	0x5400077c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.nge.s",		"S,T",		0x5400037c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.nge.s",		"M,S,T",	0x5400037c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.nge.ps",		"S,T",		0x54000b7c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.nge.ps",		"M,S,T",	0x54000b7c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.le.d",		"S,T",		0x540007bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.le.d",		"M,S,T",	0x540007bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.le.s",		"S,T",		0x540003bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.le.s",		"M,S,T",	0x540003bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.le.ps",		"S,T",		0x54000bbc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.le.ps",		"M,S,T",	0x54000bbc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngt.d",		"S,T",		0x540007fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngt.d",		"M,S,T",	0x540007fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngt.s",		"S,T",		0x540003fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ngt.s",		"M,S,T",	0x540003fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	0 },
-{"c.ngt.ps",		"S,T",		0x54000bfc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"c.ngt.ps",		"M,S,T",	0x54000bfc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	0 },
-{"cache",		"k,~(b)",	0x20006000, 0xfc00f000,	RD_3,			0,		I1,		0,	0 },
+{"c.f.d",		"S,T",		0x5400043c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.f.d",		"M,S,T",	0x5400043c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.f.s",		"S,T",		0x5400003c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.f.s",		"M,S,T",	0x5400003c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.f.ps",		"S,T",		0x5400083c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.f.ps",		"M,S,T",	0x5400083c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.un.d",		"S,T",		0x5400047c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.un.d",		"M,S,T",	0x5400047c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.un.s",		"S,T",		0x5400007c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.un.s",		"M,S,T",	0x5400007c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.un.ps",		"S,T",		0x5400087c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.un.ps",		"M,S,T",	0x5400087c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.eq.d",		"S,T",		0x540004bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.eq.d",		"M,S,T",	0x540004bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.eq.s",		"S,T",		0x540000bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.eq.s",		"M,S,T",	0x540000bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.eq.ps",		"S,T",		0x540008bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.eq.ps",		"M,S,T",	0x540008bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ueq.d",		"S,T",		0x540004fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ueq.d",		"M,S,T",	0x540004fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ueq.s",		"S,T",		0x540000fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ueq.s",		"M,S,T",	0x540000fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ueq.ps",		"S,T",		0x540008fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ueq.ps",		"M,S,T",	0x540008fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.olt.d",		"S,T",		0x5400053c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.olt.d",		"M,S,T",	0x5400053c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.olt.s",		"S,T",		0x5400013c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.olt.s",		"M,S,T",	0x5400013c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.olt.ps",		"S,T",		0x5400093c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.olt.ps",		"M,S,T",	0x5400093c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ult.d",		"S,T",		0x5400057c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ult.d",		"M,S,T",	0x5400057c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ult.s",		"S,T",		0x5400017c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ult.s",		"M,S,T",	0x5400017c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ult.ps",		"S,T",		0x5400097c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ult.ps",		"M,S,T",	0x5400097c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ole.d",		"S,T",		0x540005bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ole.d",		"M,S,T",	0x540005bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ole.s",		"S,T",		0x540001bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ole.s",		"M,S,T",	0x540001bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ole.ps",		"S,T",		0x540009bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ole.ps",		"M,S,T",	0x540009bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ule.d",		"S,T",		0x540005fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ule.d",		"M,S,T",	0x540005fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ule.s",		"S,T",		0x540001fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ule.s",		"M,S,T",	0x540001fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ule.ps",		"S,T",		0x540009fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ule.ps",		"M,S,T",	0x540009fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.sf.d",		"S,T",		0x5400063c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.sf.d",		"M,S,T",	0x5400063c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.sf.s",		"S,T",		0x5400023c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.sf.s",		"M,S,T",	0x5400023c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.sf.ps",		"S,T",		0x54000a3c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.sf.ps",		"M,S,T",	0x54000a3c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngle.d",		"S,T",		0x5400067c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngle.d",		"M,S,T",	0x5400067c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngle.s",		"S,T",		0x5400027c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ngle.s",		"M,S,T",	0x5400027c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ngle.ps",		"S,T",		0x54000a7c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngle.ps",		"M,S,T",	0x54000a7c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.seq.d",		"S,T",		0x540006bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.seq.d",		"M,S,T",	0x540006bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.seq.s",		"S,T",		0x540002bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.seq.s",		"M,S,T",	0x540002bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.seq.ps",		"S,T",		0x54000abc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.seq.ps",		"M,S,T",	0x54000abc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngl.d",		"S,T",		0x540006fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngl.d",		"M,S,T",	0x540006fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngl.s",		"S,T",		0x540002fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ngl.s",		"M,S,T",	0x540002fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ngl.ps",		"S,T",		0x54000afc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngl.ps",		"M,S,T",	0x54000afc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.lt.d",		"S,T",		0x5400073c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.lt.d",		"M,S,T",	0x5400073c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.lt.s",		"S,T",		0x5400033c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.lt.s",		"M,S,T",	0x5400033c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.lt.ps",		"S,T",		0x54000b3c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.lt.ps",		"M,S,T",	0x54000b3c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.nge.d",		"S,T",		0x5400077c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.nge.d",		"M,S,T",	0x5400077c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.nge.s",		"S,T",		0x5400037c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.nge.s",		"M,S,T",	0x5400037c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.nge.ps",		"S,T",		0x54000b7c, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.nge.ps",		"M,S,T",	0x54000b7c, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.le.d",		"S,T",		0x540007bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.le.d",		"M,S,T",	0x540007bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.le.s",		"S,T",		0x540003bc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.le.s",		"M,S,T",	0x540003bc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.le.ps",		"S,T",		0x54000bbc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.le.ps",		"M,S,T",	0x54000bbc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngt.d",		"S,T",		0x540007fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngt.d",		"M,S,T",	0x540007fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngt.s",		"S,T",		0x540003fc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ngt.s",		"M,S,T",	0x540003fc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_S,	0,		I1,		0,	I37 },
+{"c.ngt.ps",		"S,T",		0x54000bfc, 0xfc00ffff,	RD_1|RD_2|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"c.ngt.ps",		"M,S,T",	0x54000bfc, 0xfc001fff,	RD_2|RD_3|WR_CC|FP_D,	0,		I1,		0,	I37 },
+{"cache",		"k,~(b)",	0x20006000, 0xfc00f000,	RD_3,			0,		I1,		0,	I37 },
+{"cache",		"k,+j(b)",	0x20006000, 0xfc00fe00,	RD_3,			0,		I37,		0,	0 },
 {"cache",		"k,A(b)",	0,    (int) M_CACHE_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"ceil.l.d",		"T,S",		0x5400533b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
 {"ceil.l.s",		"T,S",		0x5400133b, 0xfc00ffff,	WR_1|RD_2|FP_S|FP_D,	0,		I1,		0,	0 },
@@ -559,12 +662,12 @@ const struct mips_opcode micromips_opcodes[] =
 {"cvt.s.pu",		"T,S",		0x5400293b, 0xfc00ffff,	WR_1|RD_2|FP_S|FP_D,	0,		I1,		0,	0 },
 {"cvt.w.d",		"T,S",		0x5400493b, 0xfc00ffff,	WR_1|RD_2|FP_S|FP_D,	0,		I1,		0,	0 },
 {"cvt.w.s",		"T,S",		0x5400093b, 0xfc00ffff,	WR_1|RD_2|FP_S,		0,		I1,		0,	0 },
-{"cvt.ps.s",		"D,V,T",	0x54000180, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S|FP_D, 0,		I1,		0,	0 },
+{"cvt.ps.s",		"D,V,T",	0x54000180, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S|FP_D, 0,		I1,		0,	I37 },
 {"dabs",		"d,v",		0,    (int) M_DABS,	INSN_MACRO,		0,		I3,		0,	0 },
 {"dadd",		"d,v,t",	0x58000110, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I3,		0,	0 },
-{"dadd",		"t,r,I",	0,    (int) M_DADD_I,	INSN_MACRO,		0,		I3,		0,	0 },
-{"daddi",		"t,r,.",	0x5800001c, 0xfc00003f,	WR_1|RD_2,		0,		I3,		0,	0 },
-{"daddi",		"t,r,I",	0,    (int) M_DADD_I,	INSN_MACRO,		0,		I3,		0,	0 },
+{"dadd",		"t,r,I",	0,    (int) M_DADD_I,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"daddi",		"t,r,.",	0x5800001c, 0xfc00003f,	WR_1|RD_2,		0,		I3,		0,	I69 },
+{"daddi",		"t,r,I",	0,    (int) M_DADD_I,	INSN_MACRO,		0,		I3,		0,	I69 },
 {"daddiu",		"t,r,j",	0x5c000000, 0xfc000000,	WR_1|RD_2,		0,		I3,		0,	0 },
 {"daddu",		"d,v,t",	0x58000150, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I3,		0,	0 },
 {"daddu",		"t,r,I",	0,    (int) M_DADDU_I,	INSN_MACRO,		0,		I3,		0,	0 },
@@ -577,15 +680,17 @@ const struct mips_opcode micromips_opcodes[] =
 {"dextm",		"t,r,+A,+G",	0x58000024, 0xfc00003f, WR_1|RD_2,		0,		I3,		0,	0 },
 {"dextu",		"t,r,+E,+H",	0x58000014, 0xfc00003f, WR_1|RD_2,		0,		I3,		0,	0 },
 /* For ddiv, see the comments about div.  */
-{"ddiv",		"z,s,t",	0x5800ab3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I3,		0,	0 },
-{"ddiv",		"z,t",		0x5800ab3c, 0xfc1fffff,	RD_2|WR_HILO,		0,		I3,		0,	0 },
-{"ddiv",		"d,v,t",	0,    (int) M_DDIV_3,	INSN_MACRO,		0,		I3,		0,	0 },
-{"ddiv",		"d,v,I",	0,    (int) M_DDIV_3I,	INSN_MACRO,		0,		I3,		0,	0 },
+{"ddiv",		"d,+t,+s",	0x58000118, 0xfc0007ff, WR_1|RD_2|RD_3,		0,		I69,		0,	0 },
+{"ddiv",		"z,s,t",	0x5800ab3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I3,		0,	I69 },
+{"ddiv",		"z,t",		0x5800ab3c, 0xfc1fffff,	RD_2|WR_HILO,		0,		I3,		0,	I69 },
+{"ddiv",		"d,v,t",	0,    (int) M_DDIV_3,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"ddiv",		"d,v,I",	0,    (int) M_DDIV_3I,	INSN_MACRO,		0,		I3,		0,	I69 },
 /* For ddivu, see the comments about div.  */
-{"ddivu",		"z,s,t",	0x5800bb3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I3,		0,	0 },
-{"ddivu",		"z,t",		0x5800bb3c, 0xfc1fffff,	RD_2|WR_HILO,		0,		I3,		0,	0 },
-{"ddivu",		"d,v,t",	0,    (int) M_DDIVU_3,	INSN_MACRO,		0,		I3,		0,	0 },
-{"ddivu",		"d,v,I",	0,    (int) M_DDIVU_3I,	INSN_MACRO,		0,		I3,		0,	0 },
+{"ddivu",		"d,+t,+s",	0x58000198, 0xfc0007ff, WR_1|RD_2|RD_3,		0,		I69,		0,	0 },
+{"ddivu",		"z,s,t",	0x5800bb3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I3,		0,	I69 },
+{"ddivu",		"z,t",		0x5800bb3c, 0xfc1fffff,	RD_2|WR_HILO,		0,		I3,		0,	I69 },
+{"ddivu",		"d,v,t",	0,    (int) M_DDIVU_3,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"ddivu",		"d,v,I",	0,    (int) M_DDIVU_3I,	INSN_MACRO,		0,		I3,		0,	I69 },
 {"di",			"",		0x0000477c, 0xffffffff,	RD_C0,			0,		I1,		0,	0 },
 {"di",			"s",		0x0000477c, 0xffe0ffff,	WR_1|RD_C0,		0,		I1,		0,	0 },
 {"dins",		"t,r,+A,+B",	0x5800000c, 0xfc00003f, WR_1|RD_2,		0,		I3,		0,	0 },
@@ -597,17 +702,19 @@ const struct mips_opcode micromips_opcodes[] =
    though the first operand appeared twice (the first operand is both
    a source and a destination).  To get the div machine instruction,
    you must use an explicit destination of $0.  */
-{"div",			"z,s,t",	0x0000ab3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I1,		0,	0 },
-{"div",			"z,t",		0x0000ab3c, 0xfc1fffff,	RD_2|WR_HILO,		0,		I1,		0,	0 },
-{"div",			"d,v,t",	0,    (int) M_DIV_3,	INSN_MACRO,		0,		I1,		0,	0 },
-{"div",			"d,v,I",	0,    (int) M_DIV_3I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"div",			"d,v,t",	0x00000118, 0xfc0007ff, WR_1|RD_2|RD_3, 	0,		I37,		0,	0 },
+{"div",			"z,s,t",	0x0000ab3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I1,		0,	I37 },
+{"div",			"z,t",		0x0000ab3c, 0xfc1fffff,	RD_2|WR_HILO,		0,		I1,		0,	I37 },
+{"div",			"d,v,t",	0,    (int) M_DIV_3,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"div",			"d,v,I",	0,    (int) M_DIV_3I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"div.d",		"D,V,T",	0x540001f0, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
 {"div.s",		"D,V,T",	0x540000f0, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I1,		0,	0 },
 /* For divu, see the comments about div.  */
-{"divu",		"z,s,t",	0x0000bb3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I1,		0,	0 },
-{"divu",		"z,t",		0x0000bb3c, 0xfc1fffff,	RD_2|WR_HILO,		0,		I1,		0,	0 },
-{"divu",		"d,v,t",	0,    (int) M_DIVU_3,	INSN_MACRO,		0,		I1,		0,	0 },
-{"divu",		"d,v,I",	0,    (int) M_DIVU_3I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"divu",		"d,v,t",	0x00000198, 0xfc0007ff, WR_1|RD_2|RD_3, 	0,		I37,		0,	0},
+{"divu",		"z,s,t",	0x0000bb3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I1,		0,	I37 },
+{"divu",		"z,t",		0x0000bb3c, 0xfc1fffff,	RD_2|WR_HILO,		0,		I1,		0,	I37 },
+{"divu",		"d,v,t",	0,    (int) M_DIVU_3,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"divu",		"d,v,I",	0,    (int) M_DIVU_3I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"dla",			"t,A(b)",	0,    (int) M_DLA_AB,	INSN_MACRO,		0,		I3,		0,	0 },
 {"dlca",		"t,A(b)",	0,    (int) M_DLCA_AB,	INSN_MACRO,		0,		I3,		0,	0 },
 {"dli",			"t,j",		0x30000000, 0xfc1f0000,	WR_1,			0,		I3,		0,	0 }, /* addiu */
@@ -629,22 +736,28 @@ const struct mips_opcode micromips_opcodes[] =
 /*{"dmfc2",		"t,G,H",	0x58000283, 0xfc001fff,	WR_1|RD_C2,		0,		I3,		0,	0 },*/
 {"dmtc2",		"t,G",		0x00007d3c, 0xfc00ffff,	RD_1|WR_C2|WR_CC,	0,		I3,		0,	0 },
 /*{"dmtc2",		"t,G,H",	0x58000683, 0xfc001fff,	RD_1|WR_C2|WR_CC,	0,		I3,		0,	0 },*/
-{"dmul",		"d,v,t",	0,    (int) M_DMUL,	INSN_MACRO,		0,		I3,		0,	0 },
-{"dmul",		"d,v,I",	0,    (int) M_DMUL_I,	INSN_MACRO,		0,		I3,		0,	0 },
-{"dmulo",		"d,v,t",	0,    (int) M_DMULO,	INSN_MACRO,		0,		I3,		0,	0 },
-{"dmulo",		"d,v,I",	0,    (int) M_DMULO_I,	INSN_MACRO,		0,		I3,		0,	0 },
-{"dmulou",		"d,v,t",	0,    (int) M_DMULOU,	INSN_MACRO,		0,		I3,		0,	0 },
-{"dmulou",		"d,v,I",	0,    (int) M_DMULOU_I,	INSN_MACRO,		0,		I3,		0,	0 },
-{"dmult",		"s,t",		0x58008b3c, 0xfc00ffff,	RD_1|RD_2|WR_HILO,	0,		I3,		0,	0 },
-{"dmultu",		"s,t",		0x58009b3c, 0xfc00ffff,	RD_1|RD_2|WR_HILO,	0,		I3,		0,	0 },
+{"dmod",		"d,s,t",	0x58000158, 0xfc0007ff, WR_1|RD_2|RD_3,		0,		I69,		0,	0 },
+{"dmodu",		"d,s,t",	0x580001d8, 0xfc0007ff, WR_1|RD_2|RD_3,		0,		I69,		0,	0 },
+{"dmuh",		"d,s,t",	0x58000058, 0xfc0007ff, WR_1|RD_2|RD_3,		0,		I69,		0,	0 },
+{"dmuhu",		"d,s,t",	0x580000d8, 0xfc0007ff, WR_1|RD_2|RD_3,      	0,		I69,		0,	0 },
+{"dmul",		"d,s,t",	0x58000018, 0xfc0007ff, WR_1|RD_2|RD_3,		0,		I69,		0,	0 },
+{"dmul",		"d,v,t",	0,    (int) M_DMUL,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"dmul",		"d,v,I",	0,    (int) M_DMUL_I,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"dmulo",		"d,v,t",	0,    (int) M_DMULO,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"dmulo",		"d,v,I",	0,    (int) M_DMULO_I,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"dmulou",		"d,v,t",	0,    (int) M_DMULOU,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"dmulou",		"d,v,I",	0,    (int) M_DMULOU_I,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"dmult",		"s,t",		0x58008b3c, 0xfc00ffff,	RD_1|RD_2|WR_HILO,	0,		I3,		0,	I69 },
+{"dmultu",		"s,t",		0x58009b3c, 0xfc00ffff,	RD_1|RD_2|WR_HILO,	0,		I3,		0,	I69 },
+{"dmulu",		"d,s,t",	0x58000098, 0xfc0007ff, WR_1|RD_2|RD_3,      	0,		I69,		0,	0 },
 {"dneg",		"d,w",		0x58000190, 0xfc1f07ff,	WR_1|RD_2,		0,		I3,		0,	0 }, /* dsub 0 */
 {"dnegu",		"d,w",		0x580001d0, 0xfc1f07ff,	WR_1|RD_2,		0,		I3,		0,	0 }, /* dsubu 0 */
-{"drem",		"z,s,t",	0x5800ab3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I3,		0,	0 },
-{"drem",		"d,v,t",	0,    (int) M_DREM_3,	INSN_MACRO,		0,		I3,		0,	0 },
-{"drem",		"d,v,I",	0,    (int) M_DREM_3I,	INSN_MACRO,		0,		I3,		0,	0 },
-{"dremu",		"z,s,t",	0x5800bb3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I3,		0,	0 },
-{"dremu",		"d,v,t",	0,    (int) M_DREMU_3,	INSN_MACRO,		0,		I3,		0,	0 },
-{"dremu",		"d,v,I",	0,    (int) M_DREMU_3I,	INSN_MACRO,		0,		I3,		0,	0 },
+{"drem",		"z,s,t",	0x5800ab3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I3,		0,	I69 },
+{"drem",		"d,v,t",	0,    (int) M_DREM_3,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"drem",		"d,v,I",	0,    (int) M_DREM_3I,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"dremu",		"z,s,t",	0x5800bb3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I3,		0,	I69 },
+{"dremu",		"d,v,t",	0,    (int) M_DREMU_3,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"dremu",		"d,v,I",	0,    (int) M_DREMU_3I,	INSN_MACRO,		0,		I3,		0,	I69 },
 {"drol",		"d,v,t",	0,    (int) M_DROL,	INSN_MACRO,		0,		I3,		0,	0 },
 {"drol",		"d,v,I",	0,    (int) M_DROL_I,	INSN_MACRO,		0,		I3,		0,	0 },
 {"dror",		"d,v,t",	0,    (int) M_DROR,	INSN_MACRO,		0,		I3,		0,	0 },
@@ -676,13 +789,16 @@ const struct mips_opcode micromips_opcodes[] =
 {"dsrl",		"t,r,>",	0x58000048, 0xfc0007ff,	WR_1|RD_2,		0,		I3,		0,	0 }, /* dsrl32 */
 {"dsrl",		"t,r,<",	0x58000040, 0xfc0007ff,	WR_1|RD_2,		0,		I3,		0,	0 },
 {"dsub",		"d,v,t",	0x58000190, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I3,		0,	0 },
-{"dsub",		"d,v,I",	0,    (int) M_DSUB_I,	INSN_MACRO,		0,		I3,		0,	0 },
+{"dsub",		"d,v,I",	0,    (int) M_DSUB_I,	INSN_MACRO,		0,		I3,		0,	I69 },
 {"dsubu",		"d,v,t",	0x580001d0, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I3,		0,	0 },
 {"dsubu",		"d,v,I",	0,    (int) M_DSUBU_I,	INSN_MACRO,		0,		I3,		0,	0 },
+{"dvp",			"s",		0x41600024, 0xffe0ffff, WR_1|NODS,		0,		I37,		0,	0 },
 {"ei",			"",		0x0000577c, 0xffffffff,	WR_C0,			0,		I1,		0,	0 },
 {"ei",			"s",		0x0000577c, 0xffe0ffff,	WR_1|WR_C0,		0,		I1,		0,	0 },
 {"eret",		"",		0x0000f37c, 0xffffffff,	NODS,			0,		I1,		0,	0 },
+{"eretnc",		"",		0x0001f37c, 0xffffffff,	NODS,			0,		I36,		0,	0 },
 {"ext",			"t,r,+A,+C",	0x0000002c, 0xfc00003f, WR_1|RD_2,		0,		I1,		0,	0 },
+{"evp",			"s",		0x41600004, 0xffe0ffff, WR_1|NODS,		0,		I37,		0,	0 },
 {"floor.l.d",		"T,V",		0x5400433b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
 {"floor.l.s",		"T,V",		0x5400033b, 0xfc00ffff,	WR_1|RD_2|FP_S|FP_D,	0,		I1,		0,	0 },
 {"floor.w.d",		"T,V",		0x54004b3b, 0xfc00ffff,	WR_1|RD_2|FP_S|FP_D,	0,		I1,		0,	0 },
@@ -691,40 +807,69 @@ const struct mips_opcode micromips_opcodes[] =
 {"hypcall",		"+J",		0x0000c37c, 0xfc00ffff,	TRAP,			0,		0,		IVIRT,	0 },
 {"ins",			"t,r,+A,+B",	0x0000000c, 0xfc00003f, WR_1|RD_2,		0,		I1,		0,	0 },
 {"iret",		"",		0x0000d37c, 0xffffffff,	NODS,			0,		0,		MC,	0 },
-{"jr",			"mj",		    0x4580,     0xffe0,	RD_1|UBD,		0,		I1,		0,	0 },
-{"jr",			"s",		0x00000f3c, 0xffe0ffff,	RD_1|UBD,		BD32,		I1,		0,	0 }, /* jalr */
-{"jrs",			"s",		0x00004f3c, 0xffe0ffff,	RD_1|UBD,		BD16,		I1,		0,	0 }, /* jalrs */
-{"jraddiusp",		"mP",		    0x4700,     0xffe0,	NODS,			WR_sp|RD_31|RD_sp|UBR, I1,	0,	0 },
+{"jr",			"mj",		    0x4580,     0xffe0,	RD_1|UBD,		0,		I1,		0,	I37 },
+{"jr",			"mp",		    0x4403,     0xfc1f,	RD_1,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* jrc16 */
+{"jr",			"s",		0x00000f3c, 0xffe0ffff,	RD_1|UBD,		BD32,		I1,		0,	I37 }, /* jalr */
+{"jr",			"s",		0x80000000, 0xffe0ffff,	RD_1,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* jic */
+{"jrs",			"s",		0x00004f3c, 0xffe0ffff,	RD_1|UBD,		BD16,		I1,		0,	I37 }, /* jalrs */
+{"jrcaddiusp",		"+P",		    0x4413,     0xfc1f,	0,			WR_sp|RD_31|RD_sp|UBR, I37,	0,	0 },
+{"jraddiusp",		"mP",		    0x4700,     0xffe0,	NODS,			WR_sp|RD_31|RD_sp|UBR, I1,	0,	I37 },
+{"jraddiusp",		"+P",		    0x4413,     0xfc1f,	0,			INSN2_ALIAS|WR_sp|RD_31|RD_sp|UBR, I37,	0,	0 },
 /* This macro is after the real instruction so that it only matches with
    -minsn32.  */
-{"jraddiusp",		"mP",		0,   (int) M_JRADDIUSP,	INSN_MACRO,		0,		I1,		0,	0 },
-{"jrc",			"mj",		    0x45a0,     0xffe0,	RD_1|NODS,		UBR,		I1,		0,	0 },
+{"jraddiusp",		"mP",		0,   (int) M_JRADDIUSP,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"jrc",			"mp",		    0x4403,     0xfc1f,	RD_1,			UBR,		I37,		0,	0 },
+{"jrc",			"mj",		    0x45a0,     0xffe0,	RD_1|NODS,		UBR,		I1,		0,	I37 },
+{"jrc",			"s",		0x80000000, 0xffe0ffff,	RD_1,			INSN2_ALIAS|UBR, I37,	0,	0 }, /* jic */
 /* This macro is after the real instruction so that it only matches with
    -minsn32.  */
-{"jrc",			"s",		0,    (int) M_JRC,	INSN_MACRO,		0,		I1,		0,	0 },
-{"jr.hb",		"s",		0x00001f3c, 0xffe0ffff,	RD_1|UBD,		BD32,		I1,		0,	0 }, /* jalr.hb */
-{"jrs.hb",		"s",		0x00005f3c, 0xffe0ffff,	RD_1|UBD,		BD16,		I1,		0,	0 }, /* jalrs.hb */
-{"j",			"mj",		    0x4580,     0xffe0,	RD_1|UBD,		0,		I1,		0,	0 }, /* jr */
-{"j",			"s",		0x00000f3c, 0xffe0ffff,	RD_1|UBD,		BD32,		I1,		0,	0 }, /* jr */
+{"jrc",			"s",		0,    (int) M_JRC,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"jrc.hb",		"s",		0x00001f3c, 0xffe0ffff,	RD_1,			UBR,		I37,		0,	0 }, /* jalrc.hb */
+{"jr.hb",		"s",		0x00001f3c, 0xffe0ffff,	RD_1|UBD,		BD32,		I1,		0,	I37 }, /* jalr.hb */
+{"jr.hb",		"s",		0x00001f3c, 0xffe0ffff,	RD_1,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* jalrc.hb */
+{"jrs.hb",		"s",		0x00005f3c, 0xffe0ffff,	RD_1|UBD,		BD16,		I1,		0,	I37 }, /* jalrs.hb */
+{"j",			"mj",		    0x4580,     0xffe0,	RD_1|UBD,		0,		I1,		0,	I37 }, /* jr */
+{"j",			"mp",		    0x4403,     0xfc1f,	RD_1,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* jrc16 */
+{"j",			"+'",		0x94000000, 0xfc000000,	0,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* bc */
+{"j",			"s",		0x00000f3c, 0xffe0ffff,	RD_1|UBD,		BD32,		I1,		0,	I37 }, /* jr */
+{"j",			"s",		0x80000000, 0xffe0ffff,	RD_1,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* jic */
 /* SVR4 PIC code requires special handling for j, so it must be a
    macro.  */
-{"j",			"a",		0,    (int) M_J_A,	INSN_MACRO,		0,		I1,		0,	0 },
+{"j",			"a",		0,    (int) M_J_A,	INSN_MACRO,		0,		I1,		0,	I37 },
 /* This form of j is used by the disassembler and internally by the
    assembler, but will never match user input (because the line above
    will match first).  */
-{"j",			"a",		0xd4000000, 0xfc000000,	UBD,			0,		I1,		0,	0 },
-{"jalr",		"mj",		    0x45c0,     0xffe0,	RD_1|WR_31|UBD,		BD32,		I1,		0,	0 },
-{"jalr",		"my,mj",	    0x45c0,     0xffe0,	RD_2|WR_31|UBD,		BD32,		I1,		0,	0 },
-{"jalr",		"s",		0x03e00f3c, 0xffe0ffff,	RD_1|WR_31|UBD,		BD32,		I1,		0,	0 },
-{"jalr",		"t,s",		0x00000f3c, 0xfc00ffff,	WR_1|RD_2|UBD,		BD32,		I1,		0,	0 },
-{"jalr.hb",		"s",		0x03e01f3c, 0xffe0ffff,	RD_1|WR_31|UBD,		BD32,		I1,		0,	0 },
-{"jalr.hb",		"t,s",		0x00001f3c, 0xfc00ffff,	WR_1|RD_2|UBD,		BD32,		I1,		0,	0 },
-{"jalrs",		"mj",		    0x45e0,     0xffe0,	RD_1|WR_31|UBD,		BD16,		I1,		0,	0 },
-{"jalrs",		"my,mj",	    0x45e0,     0xffe0,	RD_2|WR_31|UBD,		BD16,		I1,		0,	0 },
-{"jalrs",		"s",		0x03e04f3c, 0xffe0ffff,	RD_1|WR_31|UBD,		BD16,		I1,		0,	0 },
-{"jalrs",		"t,s",		0x00004f3c, 0xfc00ffff,	WR_1|RD_2|UBD,		BD16,		I1,		0,	0 },
-{"jalrs.hb",		"s",		0x03e05f3c, 0xffe0ffff,	RD_1|WR_31|UBD,		BD16,		I1,		0,	0 },
-{"jalrs.hb",		"t,s",		0x00005f3c, 0xfc00ffff,	WR_1|RD_2|UBD,		BD16,		I1,		0,	0 },
+{"j",			"a",		0xd4000000, 0xfc000000,	UBD,			0,		I1,		0,	I37 },
+{"jalr",		"mj",		    0x45c0,     0xffe0,	RD_1|WR_31|UBD,		BD32,		I1,		0,	I37 },
+{"jalr",		"my,mj",	    0x45c0,     0xffe0,	RD_2|WR_31|UBD,		BD32,		I1,		0,	I37 },
+{"jalr",		"mp",		    0x440b,     0xfc1f,	RD_1|WR_31,		INSN2_ALIAS|UBR|CTC, I37,	0,	0 },
+{"jalr",		"my,mp",	    0x440b,     0xfc1f,	RD_2|WR_31,		INSN2_ALIAS|UBR|CTC, I37,	0,	0 },
+{"jalr",		"s",		0x03e00f3c, 0xffe0ffff,	RD_1|WR_31|UBD,		BD32,		I1,		0,	I37 },
+{"jalr",		"t,s",		0x00000f3c, 0xfc00ffff,	WR_1|RD_2|UBD,		BD32,		I1,		0,	I37 },
+{"jalr",		"s",		0x03e00f3c, 0xffe0ffff,	RD_1|WR_31,		INSN2_ALIAS|UBR|CTC, I37,	0,	0 },
+{"jalr",		"t,s",		0x00000f3c, 0xfc00ffff,	WR_1|RD_2,		INSN2_ALIAS|UBR|CTC, I37,	0,	0 },
+{"jalr.hb",		"s",		0x03e01f3c, 0xffe0ffff,	RD_1|WR_31,		INSN2_ALIAS|UBR|CTC, I37,	0,	0 },
+{"jalr.hb",		"t,s",		0x00001f3c, 0xfc00ffff,	WR_1|RD_2,		INSN2_ALIAS|UBR|CTC, I37,	0,	0 },
+{"jalr.hb",		"s",		0x03e01f3c, 0xffe0ffff,	RD_1|WR_31|UBD,		BD32,		I1,		0,	I37 },
+{"jalr.hb",		"t,s",		0x00001f3c, 0xfc00ffff,	WR_1|RD_2|UBD,		BD32,		I1,		0,	I37 },
+{"jalrc",		"mp",		    0x440b,     0xfc1f,	RD_1|WR_31,		UBR,		I37,		0,	0 },
+{"jalrc",		"my,mp",	    0x440b,     0xfc1f,	RD_2|WR_31,		UBR,		I37,		0,	0 },
+{"jalrc",		"s",		0x03e00f3c, 0xffe0ffff,	RD_1|WR_31,		UBR,		I37,		0,	0 },
+{"jalrc",		"t,s",		0x00000f3c, 0xfc00ffff,	WR_1|RD_2,		UBR,		I37,		0,	0 },
+{"jalrc.hb",		"s",		0x03e01f3c, 0xffe0ffff,	RD_1|WR_31,		UBR,		I37,		0,	0 },
+{"jalrc.hb",		"t,s",		0x00001f3c, 0xfc00ffff,	WR_1|RD_2,		UBR,		I37,		0,	0 },
+{"jalrs",		"mp",		    0x440b,     0xfc1f,	RD_1|WR_31,		INSN2_ALIAS|UBR|CTC,		I37,		0,	0 }, /* jalrc */
+{"jalrs",		"my,mp",	    0x440b,     0xfc1f,	RD_2|WR_31,		INSN2_ALIAS|UBR|CTC,		I37,		0,	0 }, /* jalrc */
+{"jalrs",		"s",		0x03e00f3c, 0xffe0ffff,	RD_1|WR_31,		INSN2_ALIAS|UBR|CTC,		I37,		0,	0 }, /* jalrc */
+{"jalrs",		"t,s",		0x00000f3c, 0xfc00ffff,	WR_1|RD_2,		INSN2_ALIAS|UBR|CTC,		I37,		0,	0 }, /* jalrc */
+{"jalrs",		"mj",		    0x45e0,     0xffe0,	RD_1|WR_31|UBD,		BD16,		I1,		0,	I37 },
+{"jalrs",		"my,mj",	    0x45e0,     0xffe0,	RD_2|WR_31|UBD,		BD16,		I1,		0,	I37 },
+{"jalrs",		"s",		0x03e04f3c, 0xffe0ffff,	RD_1|WR_31|UBD,		BD16,		I1,		0,	I37 },
+{"jalrs",		"t,s",		0x00004f3c, 0xfc00ffff,	WR_1|RD_2|UBD,		BD16,		I1,		0,	I37 },
+{"jalrs.hb",		"s",		0x03e01f3c, 0xffe0ffff,	RD_1|WR_31,		INSN2_ALIAS|UBR|CTC,		I37,		0,	0 }, /* jalrc.hb */
+{"jalrs.hb",		"t,s",		0x00001f3c, 0xfc00ffff,	WR_1|RD_2,		INSN2_ALIAS|UBR|CTC,		I37,		0,	0 }, /* jalrc.hb */
+{"jalrs.hb",		"s",		0x03e05f3c, 0xffe0ffff,	RD_1|WR_31|UBD,		BD16,		I1,		0,	I37 },
+{"jalrs.hb",		"t,s",		0x00005f3c, 0xfc00ffff,	WR_1|RD_2|UBD,		BD16,		I1,		0,	I37 },
 /* SVR4 PIC code requires special handling for jal, so it must be a
    macro.  */
 {"jal",			"d,s",		0,    (int) M_JAL_2,	INSN_MACRO,		0,		I1,		0,	0 },
@@ -733,12 +878,14 @@ const struct mips_opcode micromips_opcodes[] =
 /* This form of jal is used by the disassembler and internally by the
    assembler, but will never match user input (because the line above
    will match first).  */
-{"jal",			"a",		0xf4000000, 0xfc000000,	WR_31|UBD,		BD32,		I1,		0,	0 },
-{"jals",		"d,s",		0,    (int) M_JALS_2,	INSN_MACRO,		0,		I1,		0,	0 },
-{"jals",		"s",		0,    (int) M_JALS_1,	INSN_MACRO,		0,		I1,		0,	0 },
-{"jals",		"a",		0,    (int) M_JALS_A,	INSN_MACRO,		0,		I1,		0,	0 },
-{"jals",		"a",		0x74000000, 0xfc000000,	WR_31|UBD,		BD16,		I1,		0,	0 },
-{"jalx",		"+i",		0xf0000000, 0xfc000000,	WR_31|UBD,		BD32,		I1,		0,	0 },
+{"jal",			"+'",		0xb4000000, 0xfc000000,	WR_31,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* balc */
+{"jal",			"a",		0xf4000000, 0xfc000000,	WR_31|UBD,		BD32,		I1,		0,	I37 },
+{"jals",		"d,s",		0,    (int) M_JALS_2,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"jals",		"s",		0,    (int) M_JALS_1,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"jals",		"a",		0,    (int) M_JALS_A,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"jals",		"a",		0x74000000, 0xfc000000,	WR_31|UBD,		BD16,		I1,		0,	I37 },
+{"jals",		"+'",		0xb4000000, 0xfc000000,	WR_31,			INSN2_ALIAS|UBR|CTC, I37,	0,	0 }, /* balc */
+{"jalx",		"+i",		0xf0000000, 0xfc000000,	WR_31|UBD,		BD32,		I1,		0,	I37 },
 {"la",			"t,A(b)",	0,    (int) M_LA_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"lb",			"t,o(b)",	0x1c000000, 0xfc000000,	WR_1|RD_3|LM,		0,		I1,		0,	0 },
 {"lb",			"t,A(b)",	0,    (int) M_LB_AB,	INSN_MACRO,		0,		I1,		0,	0 },
@@ -747,25 +894,28 @@ const struct mips_opcode micromips_opcodes[] =
 {"lbu",			"t,A(b)",	0,    (int) M_LBU_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"lca",			"t,A(b)",	0,    (int) M_LCA_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 /* The macro has to be first to handle o32 correctly.  */
+{"ldpc",		"t,-B",		0x78180000, 0xfc1c0000, WR_1,			RD_pc,		I69,		0,	0 },
+{"ld",			"t,-b(mr)",	0x78180000, 0xfc1c0000, WR_1,		        RD_pc,		I69,		0,	0 },
 {"ld",			"t,A(b)",	0,    (int) M_LD_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"ld",			"t,o(b)",	0xdc000000, 0xfc000000,	WR_1|RD_3|LM,		0,		I3,		0,	0 },
 {"ldc1",		"T,o(b)",	0xbc000000, 0xfc000000,	WR_1|RD_3|FP_D|LM,	0,		I1,		0,	0 },
 {"ldc1",		"E,o(b)",	0xbc000000, 0xfc000000,	WR_1|RD_3|FP_D|LM,	0,		I1,		0,	0 },
 {"ldc1",		"T,A(b)",	0,    (int) M_LDC1_AB,	INSN_MACRO,		INSN2_M_FP_D,	I1,		0,	0 },
 {"ldc1",		"E,A(b)",	0,    (int) M_LDC1_AB,	INSN_MACRO,		INSN2_M_FP_D,	I1,		0,	0 },
-{"ldc2",		"E,~(b)",	0x20002000, 0xfc00f000,	RD_3|WR_CC|LM,		0,		I1,		0,	0 },
+{"ldc2",		"E,~(b)",	0x20002000, 0xfc00f000,	RD_3|WR_CC|LM,		0,		I1,		0,	I37 },
+{"ldc2",		"E,+:(b)",	0x20002000, 0xfc00f800,	RD_3|WR_CC|LM,		0,		I37,		0,	0 },
 {"ldc2",		"E,A(b)",	0,    (int) M_LDC2_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"l.d",			"T,o(b)",	0xbc000000, 0xfc000000,	WR_1|RD_3|FP_D|LM,	0,		I1,		0,	0 }, /* ldc1 */
 {"l.d",			"T,A(b)",	0,    (int) M_LDC1_AB,	INSN_MACRO,		INSN2_M_FP_D,	I1,		0,	0 },
-{"ldl",			"t,~(b)",	0x60004000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I3,		0,	0 },
-{"ldl",			"t,A(b)",	0,    (int) M_LDL_AB,	INSN_MACRO,		0,		I3,		0,	0 },
+{"ldl",			"t,~(b)",	0x60004000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I3,		0,	I69 },
+{"ldl",			"t,A(b)",	0,    (int) M_LDL_AB,	INSN_MACRO,		0,		I3,		0,	I69 },
 {"ldm",			"n,~(b)",	0x20007000, 0xfc00f000,	RD_3|LM,		0,		I3,		0,	0 },
 {"ldm",			"n,A(b)",	0,    (int) M_LDM_AB,	INSN_MACRO,		0,		I3,		0,	0 },
 {"ldp",			"t,~(b)",	0x20004000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I3,		0,	0 },
 {"ldp",			"t,A(b)",	0,    (int) M_LDP_AB,	INSN_MACRO,		0,		I3,		0,	0 },
-{"ldr",			"t,~(b)",	0x60005000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I3,		0,	0 },
-{"ldr",			"t,A(b)",	0,    (int) M_LDR_AB,	INSN_MACRO,		0,		I3,		0,	0 },
-{"ldxc1",		"D,t(b)",	0x540000c8, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D|LM, 0,		I1,		0,	0 },
+{"ldr",			"t,~(b)",	0x60005000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I3,		0,	I69 },
+{"ldr",			"t,A(b)",	0,    (int) M_LDR_AB,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"ldxc1",		"D,t(b)",	0x540000c8, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D|LM,	0,		I1,		0,	I37 },
 {"lh",			"t,o(b)",	0x3c000000, 0xfc000000,	WR_1|RD_3|LM,		0,		I1,		0,	0 },
 {"lh",			"t,A(b)",	0,    (int) M_LH_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"lhu",			"md,mH(ml)",        0x2800,     0xfc00,	WR_1|RD_3|LM,		0,		I1,		0,	0 },
@@ -776,48 +926,62 @@ const struct mips_opcode micromips_opcodes[] =
 {"li.d",		"T,L",		0,    (int) M_LI_DD,	INSN_MACRO,		INSN2_M_FP_D,	I1,		0,	0 },
 {"li.s",		"t,f",		0,    (int) M_LI_S,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
 {"li.s",		"T,l",		0,    (int) M_LI_SS,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"ll",			"t,~(b)",	0x60003000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I1,		0,	0 },
+{"ll",			"t,~(b)",	0x60003000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I1,		0,	I37 },
+{"ll",			"t,+j(b)",	0x60003000, 0xfc00fe00,	WR_1|RD_3|LM,		0,		I37,		0,	0 },
 {"ll",			"t,A(b)",	0,    (int) M_LL_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"lld",			"t,~(b)",	0x60007000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I3,		0,	0 },
+{"llx",			"t,+j(b)",	0x60001000, 0xfc00fe00,	WR_1|RD_3|LM|NODS,	NNODS,		I37,		0,	0 },
+{"llx",			"t,A(b)",	0,    (int) M_LLX_AB,	INSN_MACRO,		0,		I37,		0,	0 },
+{"lld",			"t,~(b)",	0x60007000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I3,		0,	I69 },
+{"lld",			"t,+j(b)",	0x60007000, 0xfc00fe00,	WR_1|RD_3|LM,		0,		I69,		0,	0 },
 {"lld",			"t,A(b)",	0,    (int) M_LLD_AB,	INSN_MACRO,		0,		I3,		0,	0 },
-{"lui",			"s,u",		0x41a00000, 0xffe00000,	WR_1,			0,		I1,		0,	0 },
-{"luxc1",		"D,t(b)",	0x54000148, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D|LM, 0,		I1,		0,	0 },
+{"lldx",		"t,+j(b)",	0x60005000, 0xfc00fe00,	WR_1|RD_3|LM|NODS,	NNODS,		I69,		0,	0 },
+{"lldx",		"t,A(b)",	0,    (int) M_LLDX_AB,	INSN_MACRO,		0,		I69,		0,	0 },
+{"lui",			"t,u",		0x10000000, 0xfc1f0000,	WR_1,			0,		I37,		0,	0 },
+{"lui",			"s,u",		0x41a00000, 0xffe00000,	WR_1,			0,		I1,		0,	I37 },
+{"luxc1",		"D,t(b)",	0x54000148, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D|LM,	0,		I1,		0,	I37 },
+{"lwpc",		"t,-A",		0x78080000, 0xfc180000, WR_1|LM,		RD_pc,		I37,		0,	0 },
 {"lw",			"md,mJ(ml)",        0x6800,     0xfc00,	WR_1|RD_3|LM,		0,		I1,		0,	0 },
 {"lw",			"mp,mU(ms)",        0x4800,     0xfc00,	WR_1|RD_3|LM,		0,		I1,		0,	0 }, /* lwsp */
 {"lw",			"md,mA(ma)",        0x6400,     0xfc00,	WR_1|RD_3|LM,		0,		I1,		0,	0 }, /* lwgp */
+{"lw",			"t,-a(mr)",	0x78080000, 0xfc180000, WR_1|LM,		RD_pc,		I37,		0,	0 },
 {"lw",			"t,o(b)",	0xfc000000, 0xfc000000,	WR_1|RD_3|LM,		0,		I1,		0,	0 },
 {"lw",			"t,A(b)",	0,    (int) M_LW_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"lwc1",		"T,o(b)",	0x9c000000, 0xfc000000,	WR_1|RD_3|FP_S|LM,	0,		I1,		0,	0 },
 {"lwc1",		"E,o(b)",	0x9c000000, 0xfc000000,	WR_1|RD_3|FP_S|LM,	0,		I1,		0,	0 },
 {"lwc1",		"T,A(b)",	0,    (int) M_LWC1_AB,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
 {"lwc1",		"E,A(b)",	0,    (int) M_LWC1_AB,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"lwc2",		"E,~(b)",	0x20000000, 0xfc00f000,	RD_3|WR_CC|LM,		0,		I1,		0,	0 },
+{"lwc2",		"E,~(b)",	0x20000000, 0xfc00f000,	RD_3|WR_CC|LM,		0,		I1,		0,	I37 },
+{"lwc2",		"E,+:(b)",	0x20000000, 0xfc00f800,	RD_3|WR_CC|LM,		0,		I37,		0,	0 },
 {"lwc2",		"E,A(b)",	0,    (int) M_LWC2_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"l.s",			"T,o(b)",	0x9c000000, 0xfc000000,	WR_1|RD_3|FP_S|LM,	0,		I1,		0,	0 }, /* lwc1 */
 {"l.s",			"T,A(b)",	0,    (int) M_LWC1_AB,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"lwl",			"t,~(b)",	0x60000000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I1,		0,	0 },
-{"lwl",			"t,A(b)",	0,    (int) M_LWL_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"lcache",		"t,~(b)",	0x60000000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I1,		0,	0 }, /* same */
-{"lcache",		"t,A(b)",	0,    (int) M_LWL_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"lwm",			"mN,mJ(ms)",	    0x4500,     0xffc0,	RD_3|NODS|LM,		0,		I1,		0,	0 },
+{"lwl",			"t,~(b)",	0x60000000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I1,		0,	I37 },
+{"lwl",			"t,A(b)",	0,    (int) M_LWL_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"lcache",		"t,~(b)",	0x60000000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I1,		0,	I37 }, /* same */
+{"lcache",		"t,A(b)",	0,    (int) M_LWL_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"lwm",			"+N,+L(ms)",	    0x4402,     0xfc0f,	RD_3|LM,		0,		I37,		0,	0 },
+{"lwm",			"mN,mJ(ms)",	    0x4500,     0xffc0,	RD_3|NODS|LM,		0,		I1,		0,	I37 },
 {"lwm",			"n,~(b)",	0x20005000, 0xfc00f000,	RD_3|NODS|LM,		0,		I1,		0,	0 },
 {"lwm",			"n,A(b)",	0,    (int) M_LWM_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"lwp",			"t,~(b)",	0x20001000, 0xfc00f000,	WR_1|RD_3|NODS|LM,	0,		I1,		0,	0 },
 {"lwp",			"t,A(b)",	0,    (int) M_LWP_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"lwr",			"t,~(b)",	0x60001000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I1,		0,	0 },
-{"lwr",			"t,A(b)",	0,    (int) M_LWR_AB,	INSN_MACRO,		0,		I1,		0,	0 },
+{"lwr",			"t,~(b)",	0x60001000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I1,		0,	I37 },
+{"lwr",			"t,A(b)",	0,    (int) M_LWR_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"lwupc",		"t,-A",		0x78100000, 0xfc180000, WR_1|LM,		RD_pc,		I69,		0,	0 },
 {"lwu",			"t,~(b)",	0x6000e000, 0xfc00f000,	WR_1|RD_3|LM,		0,		I3,		0,	0 },
+{"lwu"	,		"t,-a(mr)",	0x78100000, 0xfc180000, WR_1|RD_pc,		0,		I69,		0,	0 },
 {"lwu",			"t,A(b)",	0,    (int) M_LWU_AB,	INSN_MACRO,		0,		I3,		0,	0 },
-{"lwxc1",		"D,t(b)",	0x54000048, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S|LM, 0,		I1,		0,	0 },
-{"flush",		"t,~(b)",	0x60001000, 0xfc00f000,	WR_1|RD_3,		0,		I1,		0,	0 }, /* same */
-{"flush",		"t,A(b)",	0,    (int) M_LWR_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"lwxs",		"d,t(b)",	0x00000118, 0xfc0007ff,	WR_1|RD_2|RD_3|LM,	0,		I1,		0,	0 },
-{"madd",		"s,t",		0x0000cb3c, 0xfc00ffff,	RD_1|RD_2|MOD_HILO,	0,		I1,		0,	0 },
+{"lwxc1",		"D,t(b)",	0x54000048, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S|LM,	0,		I1,		0,	I37 },
+{"flush",		"t,~(b)",	0x60001000, 0xfc00f000,	WR_1|RD_3,		0,		I1,		0,	I37 }, /* same */
+{"flush",		"t,A(b)",	0,    (int) M_LWR_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"lwxs",		"d,t(b)",	0x00000100, 0xfc0007ff,	WR_1|RD_2|RD_3|LM,	0,		I37,		0,	0 },
+{"lwxs",		"d,t(b)",	0x00000118, 0xfc0007ff,	WR_1|RD_2|RD_3|LM,	0,		I1,		0,	I37 },
+{"madd",		"s,t",		0x0000cb3c, 0xfc00ffff,	RD_1|RD_2|MOD_HILO,	0,		I1,		0,	I37 },
 {"madd",		"7,s,t",	0x00000abc, 0xfc003fff,	RD_2|RD_3|MOD_a,	0,		0,		D32,	0 },
-{"madd.d",		"D,R,S,T",	0x54000009, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
-{"madd.s",		"D,R,S,T",	0x54000001, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_S, 0,		I1,		0,	0 },
-{"madd.ps",		"D,R,S,T",	0x54000011, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
-{"maddu",		"s,t",		0x0000db3c, 0xfc00ffff,	RD_1|RD_2|MOD_HILO,	0,		I1,		0,	0 },
+{"madd.d",		"D,R,S,T",	0x54000009, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
+{"madd.s",		"D,R,S,T",	0x54000001, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_S, 0,		I1,		0,	I37 },
+{"madd.ps",		"D,R,S,T",	0x54000011, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
+{"maddu",		"s,t",		0x0000db3c, 0xfc00ffff,	RD_1|RD_2|MOD_HILO,	0,		I1,		0,	I37 },
 {"maddu",		"7,s,t",	0x00001abc, 0xfc003fff,	RD_2|RD_3|MOD_a,	0,		0,		D32,	0 },
 {"mfc0",		"t,G",		0x000000fc, 0xfc00ffff,	WR_1|RD_C0,		0,		I1,		0,	0 },
 {"mfc0",		"t,G,H",	0x000000fc, 0xfc00c7ff,	WR_1|RD_C0,		0,		I1,		0,	0 },
@@ -826,44 +990,51 @@ const struct mips_opcode micromips_opcodes[] =
 {"mfc2",		"t,G",		0x00004d3c, 0xfc00ffff,	WR_1|RD_C2,		0,		I1,		0,	0 },
 {"mfgc0",		"t,G",		0x000004fc, 0xfc00ffff,	WR_1|RD_C0,		0,		0,		IVIRT,	0 },
 {"mfgc0",		"t,G,H",	0x000004fc, 0xfc00c7ff,	WR_1|RD_C0,		0,		0,		IVIRT,	0 },
+{"mfhc0",		"t,G",		0x000000f4, 0xfc00ffff,	WR_1|RD_C0,		0,		0,		XPA,	0 },
+{"mfhc0",		"t,G,H",	0x000000f4, 0xfc00c7ff,	WR_1|RD_C0,		0,		0,		XPA,	0 },
+{"mfhgc0",		"t,G",		0x000004f4, 0xfc00ffff,	WR_1|RD_C0,		0,		0,		IVIRT_XPA,	0 },
+{"mfhgc0",		"t,G,H",	0x000004f4, 0xfc00c7ff,	WR_1|RD_C0,		0,		0,		IVIRT_XPA,	0 },
 {"mfhc1",		"t,S",		0x5400303b, 0xfc00ffff,	WR_1|RD_2|FP_D|LC,	0,		I1,		0,	0 },
 {"mfhc1",		"t,G",		0x5400303b, 0xfc00ffff,	WR_1|RD_2|FP_D|LC,	0,		I1,		0,	0 },
 {"mfhc2",		"t,G",		0x00008d3c, 0xfc00ffff,	WR_1|RD_C2,		0,		I1,		0,	0 },
-{"mfhi",		"mj",		    0x4600,     0xffe0,	WR_1|RD_HI,		0,		I1,		0,	0 },
-{"mfhi",		"s",		0x00000d7c, 0xffe0ffff,	WR_1|RD_HI,		0,		I1,		0,	0 },
+{"mfhi",		"mj",		    0x4600,     0xffe0,	WR_1|RD_HI,		0,		I1,		0,	I37 },
+{"mfhi",		"s",		0x00000d7c, 0xffe0ffff,	WR_1|RD_HI,		0,		I1,		0,	I37 },
 {"mfhi",		"s,7",		0x0000007c, 0xffe03fff,	WR_1|RD_HI,		0,		0,		D32,	0 },
-{"mflo",		"mj",		    0x4640,     0xffe0,	WR_1|RD_LO,		0,		I1,		0,	0 },
-{"mflo",		"s",		0x00001d7c, 0xffe0ffff,	WR_1|RD_LO,		0,		I1,		0,	0 },
+{"mflo",		"mj",		    0x4640,     0xffe0,	WR_1|RD_LO,		0,		I1,		0,	I37 },
+{"mflo",		"s",		0x00001d7c, 0xffe0ffff,	WR_1|RD_LO,		0,		I1,		0,	I37 },
 {"mflo",		"s,7",		0x0000107c, 0xffe03fff,	WR_1|RD_LO,		0,		0,		D32,	0 },
+{"mod",			"d,v,t",	0x00000158, 0xfc0007ff, WR_1|RD_2|RD_3, 	0,		I37,		0,	0},
+{"modu",		"d,v,t",	0x000001d8, 0xfc0007ff, WR_1|RD_2|RD_3, 	0,		I37,		0,	0},
 {"mov.d",		"T,S",		0x5400207b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
 {"mov.s",		"T,S",		0x5400007b, 0xfc00ffff,	WR_1|RD_2|FP_S,		0,		I1,		0,	0 },
-{"mov.ps",		"T,S",		0x5400407b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
-{"movep",		"mh,mm,mn",     0x8400,     0xfc01,	WR_1|RD_2|RD_3|NODS,	0,		I1,		0,	0 },
+{"mov.ps",		"T,S",		0x5400407b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	I37 },
+{"movep",		"mh,-m,mn",     0x4404,     0xfc04,	WR_1|RD_2|RD_3|NODS,	0,		I37,		0,	0 },
+{"movep",		"mh,mm,mn",     0x8400,     0xfc01,	WR_1|RD_2|RD_3|NODS,	0,		I1,		0,	I37 },
 /* This macro is after the real instruction so that it only matches with
    -minsn32.  */
 {"movep",		"mh,mm,mn",	0,    (int) M_MOVEP,	INSN_MACRO,		0,		I1,		0,	0 },
-{"movf",		"t,s,M",	0x5400017b, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_S|FP_D, 0,		I1,		0,	0 },
-{"movf.d",		"T,S,M",	0x54000220, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_D,	0,		I1,		0,	0 },
-{"movf.s",		"T,S,M",	0x54000020, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_S,	0,		I1,		0,	0 },
-{"movf.ps",		"T,S,M",	0x54000420, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_D,	0,		I1,		0,	0 },
-{"movn",		"d,v,t",	0x00000018, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
-{"movn.d",		"D,S,t",	0x54000138, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"movn.s",		"D,S,t",	0x54000038, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I1,		0,	0 },
-{"movn.ps",		"D,S,t",	0x54000238, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"movt",		"t,s,M",	0x5400097b, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_S|FP_D, 0,		I1,		0,	0 },
-{"movt.d",		"T,S,M",	0x54000260, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_D,	0,		I1,		0,	0 },
-{"movt.s",		"T,S,M",	0x54000060, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_S,	0,		I1,		0,	0 },
-{"movt.ps",		"T,S,M",	0x54000460, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_D,	0,		I1,		0,	0 },
-{"movz",		"d,v,t",	0x00000058, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
-{"movz.d",		"D,S,t",	0x54000178, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"movz.s",		"D,S,t",	0x54000078, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I1,		0,	0 },
-{"movz.ps",		"D,S,t",	0x54000278, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"msub",		"s,t",		0x0000eb3c, 0xfc00ffff,	RD_1|RD_2|MOD_HILO,	0,		I1,		0,	0 },
+{"movf",		"t,s,M",	0x5400017b, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_S|FP_D, 0,		I1,		0,	I37 },
+{"movf.d",		"T,S,M",	0x54000220, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_D,	0,		I1,		0,	I37 },
+{"movf.s",		"T,S,M",	0x54000020, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_S,	0,		I1,		0,	I37 },
+{"movf.ps",		"T,S,M",	0x54000420, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_D,	0,		I1,		0,	I37 },
+{"movn",		"d,v,t",	0x00000018, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	I37 },
+{"movn.d",		"D,S,t",	0x54000138, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"movn.s",		"D,S,t",	0x54000038, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I1,		0,	I37 },
+{"movn.ps",		"D,S,t",	0x54000238, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"movt",		"t,s,M",	0x5400097b, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_S|FP_D, 0,		I1,		0,	I37 },
+{"movt.d",		"T,S,M",	0x54000260, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_D,	0,		I1,		0,	I37 },
+{"movt.s",		"T,S,M",	0x54000060, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_S,	0,		I1,		0,	I37 },
+{"movt.ps",		"T,S,M",	0x54000460, 0xfc001fff,	WR_1|RD_2|RD_CC|FP_D,	0,		I1,		0,	I37 },
+{"movz",		"d,v,t",	0x00000058, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	I37 },
+{"movz.d",		"D,S,t",	0x54000178, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"movz.s",		"D,S,t",	0x54000078, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I1,		0,	I37 },
+{"movz.ps",		"D,S,t",	0x54000278, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"msub",		"s,t",		0x0000eb3c, 0xfc00ffff,	RD_1|RD_2|MOD_HILO,	0,		I1,		0,	I37 },
 {"msub",		"7,s,t",	0x00002abc, 0xfc003fff,	RD_2|RD_3|MOD_a,	0,		0,		D32,	0 },
-{"msub.d",		"D,R,S,T",	0x54000029, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
-{"msub.s",		"D,R,S,T",	0x54000021, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_S, 0,		I1,		0,	0 },
-{"msub.ps",		"D,R,S,T",	0x54000031, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
-{"msubu",		"s,t",		0x0000fb3c, 0xfc00ffff,	RD_1|RD_2|MOD_HILO,	0,		I1,		0,	0 },
+{"msub.d",		"D,R,S,T",	0x54000029, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
+{"msub.s",		"D,R,S,T",	0x54000021, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_S, 0,		I1,		0,	I37 },
+{"msub.ps",		"D,R,S,T",	0x54000031, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
+{"msubu",		"s,t",		0x0000fb3c, 0xfc00ffff,	RD_1|RD_2|MOD_HILO,	0,		I1,		0,	I37 },
 {"msubu",		"7,s,t",	0x00003abc, 0xfc003fff,	RD_2|RD_3|MOD_a,	0,		0,		D32,	0 },
 {"mtc0",		"t,G",		0x000002fc, 0xfc00ffff,	RD_1|WR_C0|WR_CC,	0,		I1,		0,	0 },
 {"mtc0",		"t,G,H",	0x000002fc, 0xfc00c7ff,	RD_1|WR_C0|WR_CC,	0,		I1,		0,	0 },
@@ -872,65 +1043,78 @@ const struct mips_opcode micromips_opcodes[] =
 {"mtc2",		"t,G",		0x00005d3c, 0xfc00ffff,	RD_1|WR_C2|WR_CC,	0,		I1,		0,	0 },
 {"mtgc0",		"t,G",		0x000006fc, 0xfc00ffff,	RD_1|WR_C0|WR_CC,	0,		0,		IVIRT,	0 },
 {"mtgc0",		"t,G,H",	0x000006fc, 0xfc00c7ff,	RD_1|WR_C0|WR_CC,	0,		0,		IVIRT,	0 },
+{"mthc0",		"t,G",		0x000002f4, 0xfc00ffff,	RD_1|WR_C0|WR_CC,	0,		0,		XPA,	0 },
+{"mthc0",		"t,G,H",	0x000002f4, 0xfc00c7ff,	RD_1|WR_C0|WR_CC,	0,		0,		XPA,	0 },
+{"mthgc0",		"t,G",		0x000006f4, 0xfc00ffff,	RD_1|WR_C0|WR_CC,	0,		0,		IVIRT_XPA,	0 },
+{"mthgc0",		"t,G,H",	0x000006f4, 0xfc00c7ff,	RD_1|WR_C0|WR_CC,	0,		0,		IVIRT_XPA,	0 },
 {"mthc1",		"t,S",		0x5400383b, 0xfc00ffff,	RD_1|WR_2|FP_D|CM,	0,		I1,		0,	0 },
 {"mthc1",		"t,G",		0x5400383b, 0xfc00ffff,	RD_1|WR_2|FP_D|CM,	0,		I1,		0,	0 },
 {"mthc2",		"t,G",		0x00009d3c, 0xfc00ffff,	RD_1|WR_C2|WR_CC,	0,		I1,		0,	0 },
-{"mthi",		"s",		0x00002d7c, 0xffe0ffff,	RD_1|WR_HI,		0,		I1,		0,	0 },
+{"mthi",		"s",		0x00002d7c, 0xffe0ffff,	RD_1|WR_HI,		0,		I1,		0,	I37 },
 {"mthi",		"s,7",		0x0000207c, 0xffe03fff,	RD_1|WR_HI,		0,		0,		D32,	0 },
-{"mtlo",		"s",		0x00003d7c, 0xffe0ffff,	RD_1|WR_LO,		0,		I1,		0,	0 },
+{"mtlo",		"s",		0x00003d7c, 0xffe0ffff,	RD_1|WR_LO,		0,		I1,		0,	I37 },
 {"mtlo",		"s,7",		0x0000307c, 0xffe03fff,	RD_1|WR_LO,		0,		0,		D32,	0 },
-{"mul",			"d,v,t",	0x00000210, 0xfc0007ff,	WR_1|RD_2|RD_3|WR_HILO,	0,		I1,		0,	0 },
-{"mul",			"d,v,I",	0,    (int) M_MUL_I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"muh",			"d,v,t",	0x00000058, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I37,		0,	0 },
+{"muhu",		"d,v,t",	0x000000d8, 0xfc0007ff, WR_1|RD_2|RD_3, 	0,		I37,		0,	0},
+{"mul",			"d,v,t",	0x00000018, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I37,		0,	0 },
+{"mul",			"d,v,t",	0x00000210, 0xfc0007ff,	WR_1|RD_2|RD_3|WR_HILO,	0,		I1,		0,	I37 },
+{"mul",			"d,v,I",	0,    (int) M_MUL_I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"mul.d",		"D,V,T",	0x540001b0, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
 {"mul.s",		"D,V,T",	0x540000b0, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I1,		0,	0 },
-{"mul.ps",		"D,V,T",	0x540002b0, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"mulo",		"d,v,t",	0,    (int) M_MULO,	INSN_MACRO,		0,		I1,		0,	0 },
-{"mulo",		"d,v,I",	0,    (int) M_MULO_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"mulou",		"d,v,t",	0,    (int) M_MULOU,	INSN_MACRO,		0,		I1,		0,	0 },
-{"mulou",		"d,v,I",	0,    (int) M_MULOU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"mult",		"s,t",		0x00008b3c, 0xfc00ffff,	RD_1|RD_2|WR_HILO,	0,		I1,		0,	0 },
+{"mul.ps",		"D,V,T",	0x540002b0, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"mulo",		"d,v,t",	0,    (int) M_MULO,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"mulo",		"d,v,I",	0,    (int) M_MULO_I,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"mulou",		"d,v,t",	0,    (int) M_MULOU,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"mulou",		"d,v,I",	0,    (int) M_MULOU_I,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"mult",		"s,t",		0x00008b3c, 0xfc00ffff,	RD_1|RD_2|WR_HILO,	0,		I1,		0,	I37 },
 {"mult",		"7,s,t",	0x00000cbc, 0xfc003fff,	RD_2|RD_3|WR_a,		0,		0,		D32,	0 },
-{"multu",		"s,t",		0x00009b3c, 0xfc00ffff,	RD_1|RD_2|WR_HILO,	0,		I1,		0,	0 },
+{"multu",		"s,t",		0x00009b3c, 0xfc00ffff,	RD_1|RD_2|WR_HILO,	0,		I1,		0,	I37 },
 {"multu",		"7,s,t",	0x00001cbc, 0xfc003fff,	RD_2|RD_3|WR_a,		0,		0,		D32,	0 },
+{"mulu",		"d,v,t",	0x00000098, 0xfc0007ff, WR_1|RD_2|RD_3, 	0,		I37,		0,	0},
 {"neg",			"d,w",		0x00000190, 0xfc1f07ff,	WR_1|RD_2,		0,		I1,		0,	0 }, /* sub 0 */
 {"negu",		"d,w",		0x000001d0, 0xfc1f07ff,	WR_1|RD_2,		0,		I1,		0,	0 }, /* subu 0 */
 {"neg.d",		"T,V",		0x54002b7b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
 {"neg.s",		"T,V",		0x54000b7b, 0xfc00ffff,	WR_1|RD_2|FP_S,		0,		I1,		0,	0 },
-{"neg.ps",		"T,V",		0x54004b7b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
-{"nmadd.d",		"D,R,S,T",	0x5400000a, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
-{"nmadd.s",		"D,R,S,T",	0x54000002, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_S, 0,		I1,		0,	0 },
-{"nmadd.ps",		"D,R,S,T",	0x54000012, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
-{"nmsub.d",		"D,R,S,T",	0x5400002a, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
-{"nmsub.s",		"D,R,S,T",	0x54000022, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_S, 0,		I1,		0,	0 },
-{"nmsub.ps",		"D,R,S,T",	0x54000032, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	0 },
+{"neg.ps",		"T,V",		0x54004b7b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	I37 },
+{"nmadd.d",		"D,R,S,T",	0x5400000a, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
+{"nmadd.s",		"D,R,S,T",	0x54000002, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_S, 0,		I1,		0,	I37 },
+{"nmadd.ps",		"D,R,S,T",	0x54000012, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
+{"nmsub.d",		"D,R,S,T",	0x5400002a, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
+{"nmsub.s",		"D,R,S,T",	0x54000022, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_S, 0,		I1,		0,	I37 },
+{"nmsub.ps",		"D,R,S,T",	0x54000032, 0xfc00003f,	WR_1|RD_2|RD_3|RD_4|FP_D, 0,		I1,		0,	I37 },
 /* nop is at the start of the table.  */
-{"not",			"mf,mg",	    0x4400,     0xffc0,	WR_1|RD_2,		0,		I1,		0,	0 }, /* put not before nor */
+{"not",			"md,ml",	    0x4400,     0xfc0f,	WR_1|RD_2,		0,		I37,		0,	0 }, /* put not before nor */
+{"not",			"mf,mg",	    0x4400,     0xffc0,	WR_1|RD_2,		0,		I1,		0,	I37 }, /* put not before nor */
 {"not",			"d,v",		0x000002d0, 0xffe007ff,	WR_1|RD_2,		0,		I1,		0,	0 }, /* nor d,s,0 */
-{"nor",			"mf,mz,mg",	    0x4400,     0xffc0,	WR_1|RD_3,		0,		I1,		0,	0 }, /* not */
-{"nor",			"mf,mg,mz",	    0x4400,     0xffc0,	WR_1|RD_2,		0,		I1,		0,	0 }, /* not */
+{"nor",			"md,mz,ml",	    0x4400,     0xfc0f,	WR_1|RD_3,		0,		I37,		0,	0 }, /* not */
+{"nor",			"md,ml,mz",	    0x4400,     0xfc0f,	WR_1|RD_2,		0,		I37,		0,	0 }, /* not */
+{"nor",			"mf,mz,mg",	    0x4400,     0xffc0,	WR_1|RD_3,		0,		I1,		0,	I37 }, /* not */
+{"nor",			"mf,mg,mz",	    0x4400,     0xffc0,	WR_1|RD_2,		0,		I1,		0,	I37 }, /* not */
 {"nor",			"d,v,t",	0x000002d0, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
 {"nor",			"t,r,I",	0,    (int) M_NOR_I,	INSN_MACRO,		0,		I1,		0,	0 },
 {"or",			"mp,mj,mz",	    0x0c00,     0xfc00,	WR_1|RD_2,		0,		I1,		0,	0 }, /* move */
 {"or",			"mp,mz,mj",	    0x0c00,     0xfc00,	WR_1|RD_3,		0,		I1,		0,	0 }, /* move */
-{"or",			"mf,mt,mg",	    0x44c0,     0xffc0,	MOD_1|RD_3,		0,		I1,		0,	0 },
-{"or",			"mf,mg,mx",	    0x44c0,     0xffc0,	MOD_1|RD_2,		0,		I1,		0,	0 },
+{"or",			"md,mt,ml",	    0x4409,     0xfc0f,	MOD_1|RD_3,		0,		I37,		0,	0 },
+{"or",			"md,ml,mx",	    0x4409,     0xfc0f,	MOD_1|RD_2,		0,		I37,		0,	0 },
+{"or",			"mf,mt,mg",	    0x44c0,     0xffc0,	MOD_1|RD_3,		0,		I1,		0,	I37 },
+{"or",			"mf,mg,mx",	    0x44c0,     0xffc0,	MOD_1|RD_2,		0,		I1,		0,	I37 },
 {"or",			"d,v,t",	0x00000290, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
 {"or",			"t,r,I",	0,    (int) M_OR_I,	INSN_MACRO,		0,		I1,		0,	0 },
 {"ori",			"mp,mj,mZ",	    0x0c00,     0xfc00,	WR_1|RD_2,		0,		I1,		0,	0 }, /* move */
 {"ori",			"t,r,i",	0x50000000, 0xfc000000,	WR_1|RD_2,		0,		I1,		0,	0 },
-{"pll.ps",		"D,V,T",	0x54000080, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"plu.ps",		"D,V,T",	0x540000c0, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"pul.ps",		"D,V,T",	0x54000100, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"puu.ps",		"D,V,T",	0x54000140, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
+{"pll.ps",		"D,V,T",	0x54000080, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"plu.ps",		"D,V,T",	0x540000c0, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"pul.ps",		"D,V,T",	0x54000100, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"puu.ps",		"D,V,T",	0x54000140, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
 /* pref is at the start of the table.  */
 {"recip.d",		"T,S",		0x5400523b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
 {"recip.s",		"T,S",		0x5400123b, 0xfc00ffff,	WR_1|RD_2|FP_S,		0,		I1,		0,	0 },
-{"rem",			"z,s,t",	0x0000ab3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I1,		0,	0 },
-{"rem",			"d,v,t",	0,    (int) M_REM_3,	INSN_MACRO,		0,		I1,		0,	0 },
-{"rem",			"d,v,I",	0,    (int) M_REM_3I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"remu",		"z,s,t",	0x0000bb3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I1,		0,	0 },
-{"remu",		"d,v,t",	0,    (int) M_REMU_3,	INSN_MACRO,		0,		I1,		0,	0 },
-{"remu",		"d,v,I",	0,    (int) M_REMU_3I,	INSN_MACRO,		0,		I1,		0,	0 },
+{"rem",			"z,s,t",	0x0000ab3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I1,		0,	I37 },
+{"rem",			"d,v,t",	0,    (int) M_REM_3,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"rem",			"d,v,I",	0,    (int) M_REM_3I,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"remu",		"z,s,t",	0x0000bb3c, 0xfc00ffff,	RD_2|RD_3|WR_HILO,	0,		I1,		0,	I37 },
+{"remu",		"d,v,t",	0,    (int) M_REMU_3,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"remu",		"d,v,I",	0,    (int) M_REMU_3I,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"rdhwr",		"t,K",		0x00006b3c, 0xfc00ffff,	WR_1,			0,		I1,		0,	0 },
 {"rdpgpr",		"t,r",		0x0000e17c, 0xfc00ffff,	WR_1,			0,		I1,		0,	0 },
 {"rol",			"d,v,t",	0,    (int) M_ROL,	INSN_MACRO,		0,		I1,		0,	0 },
@@ -953,34 +1137,43 @@ const struct mips_opcode micromips_opcodes[] =
 {"sb",			"mq,mL(ml)",        0x8800,     0xfc00,	RD_1|RD_3|SM,		0,		I1,		0,	0 },
 {"sb",			"t,o(b)",	0x18000000, 0xfc000000,	RD_1|RD_3|SM,		0,		I1,		0,	0 },
 {"sb",			"t,A(b)",	0,    (int) M_SB_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"sc",			"t,~(b)",	0x6000b000, 0xfc00f000,	MOD_1|RD_3|SM,		0,		I1,		0,	0 },
+{"scx",			"t,+j(b)",	0x60009000, 0xfc00fe00,	MOD_1|RD_3|SM|NODS,	NNODS,		I37,		0,	0 },
+{"scx",			"t,A(b)",	0,    (int) M_SCX_AB,	INSN_MACRO,		0,		I37,		0,	0 },
+{"sc",			"t,~(b)",	0x6000b000, 0xfc00f000,	MOD_1|RD_3|SM,		0,		I1,		0,	I37 },
+{"sc",			"t,+j(b)",	0x6000b000, 0xfc00fe00,	MOD_1|RD_3|SM,		0,		I37,		0,	0 },
 {"sc",			"t,A(b)",	0,    (int) M_SC_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"scd",			"t,~(b)",	0x6000f000, 0xfc00f000,	MOD_1|RD_3|SM,		0,		I3,		0,	0 },
+{"scdx",		"t,~(b)",	0x6000d000, 0xfc00f000,	MOD_1|RD_3|SM|NODS,	NNODS,		I69,		0,	0 },
+{"scdx",		"t,A(b)",	0,    (int) M_SCDX_AB,	INSN_MACRO,		0,		I69,		0,	0 },
+{"scd",			"t,~(b)",	0x6000f000, 0xfc00f000,	MOD_1|RD_3|SM,		0,		I3,		0,	I69 },
+{"scd",			"t,+j(b)",	0x6000f000, 0xfc00fe00,	MOD_1|RD_3|SM,		0,		I69,		0,	0 },
 {"scd",			"t,A(b)",	0,    (int) M_SCD_AB,	INSN_MACRO,		0,		I3,		0,	0 },
 /* The macro has to be first to handle o32 correctly.  */
 {"sd",			"t,A(b)",	0,    (int) M_SD_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"sd",			"t,o(b)",	0xd8000000, 0xfc000000,	RD_1|RD_3|SM,		0,		I3,		0,	0 },
-{"sdbbp",		"",		    0x46c0,     0xffff,	TRAP,			0,		I1,		0,	0 },
+{"sdbbp",		"",		    0x443b,     0xffff,	TRAP,			0,		I37,		0,	0 },
+{"sdbbp",		"",		    0x46c0,     0xffff,	TRAP,			0,		I1,		0,	I37 },
 {"sdbbp",		"",		0x0000db7c, 0xffffffff,	TRAP,			0,		I1,		0,	0 },
-{"sdbbp",		"mO",		    0x46c0,     0xfff0,	TRAP,			0,		I1,		0,	0 },
+{"sdbbp",		"+K",		    0x443b,     0xfc3f,	TRAP,			0,		I37,		0,	0 },
+{"sdbbp",		"mO",		    0x46c0,     0xfff0,	TRAP,			0,		I1,		0,	I37 },
 {"sdbbp",		"+J",		0x0000db7c, 0xfc00ffff,	TRAP,			0,		I1,		0,	0 },
 {"sdc1",		"T,o(b)",	0xb8000000, 0xfc000000,	RD_1|RD_3|SM|FP_D,	0,		I1,		0,	0 },
 {"sdc1",		"E,o(b)",	0xb8000000, 0xfc000000,	RD_1|RD_3|SM|FP_D,	0,		I1,		0,	0 },
 {"sdc1",		"T,A(b)",	0,    (int) M_SDC1_AB,	INSN_MACRO,		INSN2_M_FP_D,	I1,		0,	0 },
 {"sdc1",		"E,A(b)",	0,    (int) M_SDC1_AB,	INSN_MACRO,		INSN2_M_FP_D,	I1,		0,	0 },
-{"sdc2",		"E,~(b)",	0x2000a000, 0xfc00f000,	RD_3|RD_C2|SM,		0,		I1,		0,	0 },
+{"sdc2",		"E,~(b)",	0x2000a000, 0xfc00f000,	RD_3|RD_C2|SM,		0,		I1,		0,	I37 },
+{"sdc2",		"E,+:(b)",	0x2000a000, 0xfc00f800,	RD_3|RD_C2|SM,		0,		I37,		0,	0 },
 {"sdc2",		"E,A(b)",	0,    (int) M_SDC2_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"s.d",			"T,o(b)",	0xb8000000, 0xfc000000,	RD_1|RD_3|SM|FP_D,	0,		I1,		0,	0 }, /* sdc1 */
 {"s.d",			"T,A(b)",	0,    (int) M_SDC1_AB,	INSN_MACRO,		INSN2_M_FP_D,	I1,		0,	0 },
-{"sdl",			"t,~(b)",	0x6000c000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I3,		0,	0 },
-{"sdl",			"t,A(b)",	0,    (int) M_SDL_AB,	INSN_MACRO,		0,		I3,		0,	0 },
+{"sdl",			"t,~(b)",	0x6000c000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I3,		0,	I69 },
+{"sdl",			"t,A(b)",	0,    (int) M_SDL_AB,	INSN_MACRO,		0,		I3,		0,	I69 },
 {"sdm",			"n,~(b)",	0x2000f000, 0xfc00f000,	RD_3|SM,		0,		I3,		0,	0 },
 {"sdm",			"n,A(b)",	0,    (int) M_SDM_AB,	INSN_MACRO,		0,		I3,		0,	0 },
 {"sdp",			"t,~(b)",	0x2000c000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I3,		0,	0 },
 {"sdp",			"t,A(b)",	0,    (int) M_SDP_AB,	INSN_MACRO,		0,		I3,		0,	0 },
-{"sdr",			"t,~(b)",	0x6000d000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I3,		0,	0 },
-{"sdr",			"t,A(b)",	0,    (int) M_SDR_AB,	INSN_MACRO,		0,		I3,		0,	0 },
-{"sdxc1",		"D,t(b)",	0x54000108, 0xfc0007ff,	RD_1|RD_2|RD_3|SM|FP_D,	0,		I1,		0,	0 },
+{"sdr",			"t,~(b)",	0x6000d000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I3,		0,	I69 },
+{"sdr",			"t,A(b)",	0,    (int) M_SDR_AB,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"sdxc1",		"D,t(b)",	0x54000108, 0xfc0007ff,	RD_1|RD_2|RD_3|SM|FP_D,	0,		I1,		0,	I37 },
 {"seb",			"t,r",		0x00002b3c, 0xfc00ffff,	WR_1|RD_2,		0,		I1,		0,	0 },
 {"seh",			"t,r",		0x00003b3c, 0xfc00ffff,	WR_1|RD_2,		0,		I1,		0,	0 },
 {"seq",			"d,v,t",	0,    (int) M_SEQ,	INSN_MACRO,		0,		I1,		0,	0 },
@@ -1026,11 +1219,12 @@ const struct mips_opcode micromips_opcodes[] =
 {"sub",			"d,v,I",	0,    (int) M_SUB_I,	INSN_MACRO,		0,		I1,		0,	0 },
 {"sub.d",		"D,V,T",	0x54000170, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
 {"sub.s",		"D,V,T",	0x54000070, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I1,		0,	0 },
-{"sub.ps",		"D,V,T",	0x54000270, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	0 },
-{"subu",		"md,me,ml",	    0x0401,     0xfc01,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
+{"sub.ps",		"D,V,T",	0x54000270, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I1,		0,	I37 },
+{"subu",		"-d,-e,ml",	    0x0401,     0xfc01,	WR_1|RD_2|RD_3,		0,		I37,		0,	0 },
+{"subu",		"md,me,ml",	    0x0401,     0xfc01,	WR_1|RD_2|RD_3,		0,		I1,		0,	I37 },
 {"subu",		"d,v,t",	0x000001d0, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
 {"subu",		"d,v,I",	0,    (int) M_SUBU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"suxc1",		"D,t(b)",	0x54000188, 0xfc0007ff,	RD_1|RD_2|RD_3|SM|FP_D,	0,		I1,		0,	0 },
+{"suxc1",		"D,t(b)",	0x54000188, 0xfc0007ff,	RD_1|RD_2|RD_3|SM|FP_D,	0,		I1,		0,	I37 },
 {"sw",			"mq,mJ(ml)",	    0xe800,     0xfc00,	RD_1|RD_3|SM,		0,		I1,		0,	0 },
 {"sw",			"mp,mU(ms)",	    0xc800,     0xfc00,	RD_1|RD_3|SM,		0,		I1,		0,	0 }, /* swsp */
 {"sw",			"t,o(b)",	0xf8000000, 0xfc000000,	RD_1|RD_3|SM,		0,		I1,		0,	0 },
@@ -1039,24 +1233,26 @@ const struct mips_opcode micromips_opcodes[] =
 {"swc1",		"E,o(b)",	0x98000000, 0xfc000000,	RD_1|RD_3|SM|FP_S,	0,		I1,		0,	0 },
 {"swc1",		"T,A(b)",	0,    (int) M_SWC1_AB,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
 {"swc1",		"E,A(b)",	0,    (int) M_SWC1_AB,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"swc2",		"E,~(b)",	0x20008000, 0xfc00f000,	RD_3|RD_C2|SM,		0,		I1,		0,	0 },
+{"swc2",		"E,~(b)",	0x20008000, 0xfc00f000,	RD_3|RD_C2|SM,		0,		I1,		0,	I37 },
+{"swc2",		"E,+:(b)",	0x20008000, 0xfc00f800,	RD_3|RD_C2|SM,		0,		I37,		0,	0 },
 {"swc2",		"E,A(b)",	0,    (int) M_SWC2_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"s.s",			"T,o(b)",	0x98000000, 0xfc000000,	RD_1|RD_3|SM|FP_S,	0,		I1,		0,	0 }, /* swc1 */
 {"s.s",			"T,A(b)",	0,    (int) M_SWC1_AB,	INSN_MACRO,		INSN2_M_FP_S,	I1,		0,	0 },
-{"swl",			"t,~(b)",	0x60008000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I1,		0,	0 },
-{"swl",			"t,A(b)",	0,    (int) M_SWL_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"scache",		"t,~(b)",	0x60008000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I1,		0,	0 }, /* same */
-{"scache",		"t,A(b)",	0,    (int) M_SWL_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"swm",			"mN,mJ(ms)",    0x4540,     0xffc0,	RD_3|NODS,		0,		I1,		0,	0 },
+{"swl",			"t,~(b)",	0x60008000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I1,		0,	I37 },
+{"swl",			"t,A(b)",	0,    (int) M_SWL_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"scache",		"t,~(b)",	0x60008000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I1,		0,	I37 }, /* same */
+{"scache",		"t,A(b)",	0,    (int) M_SWL_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"swm",			"+N,+L(ms)",    0x440a,     0xfc0f,	RD_3,			0,		I37,		0,	0 },
+{"swm",			"mN,mJ(ms)",    0x4540,     0xffc0,	RD_3|NODS,		0,		I1,		0,	I37 },
 {"swm",			"n,~(b)",	0x2000d000, 0xfc00f000,	RD_3|SM|NODS,		0,		I1,		0,	0 },
 {"swm",			"n,A(b)",	0,    (int) M_SWM_AB,	INSN_MACRO,		0,		I1,		0,	0 },
 {"swp",			"t,~(b)",	0x20009000, 0xfc00f000,	RD_1|RD_3|SM|NODS,	0,		I1,		0,	0 },
 {"swp",			"t,A(b)",	0,    (int) M_SWP_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"swr",			"t,~(b)",	0x60009000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I1,		0,	0 },
-{"swr",			"t,A(b)",	0,    (int) M_SWR_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"invalidate",		"t,~(b)",	0x60009000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I1,		0,	0 }, /* same */
-{"invalidate",		"t,A(b)",	0,    (int) M_SWR_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"swxc1",		"D,t(b)",	0x54000088, 0xfc0007ff,	RD_1|RD_2|RD_3|SM|FP_S,	0,		I1,		0,	0 },
+{"swr",			"t,~(b)",	0x60009000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I1,		0,	I37 },
+{"swr",			"t,A(b)",	0,    (int) M_SWR_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"invalidate",		"t,~(b)",	0x60009000, 0xfc00f000,	RD_1|RD_3|SM,		0,		I1,		0,	I37 }, /* same */
+{"invalidate",		"t,A(b)",	0,    (int) M_SWR_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"swxc1",		"D,t(b)",	0x54000088, 0xfc0007ff,	RD_1|RD_2|RD_3|SM|FP_S,	0,		I1,		0,	I37 },
 {"sync_acquire",	"",		0x00116b7c, 0xffffffff,	NODS,			0,		I1,		0,	0 },
 {"sync_mb",		"",		0x00106b7c, 0xffffffff,	NODS,			0,		I1,		0,	0 },
 {"sync_release",	"",		0x00126b7c, 0xffffffff,	NODS,			0,		I1,		0,	0 },
@@ -1064,26 +1260,27 @@ const struct mips_opcode micromips_opcodes[] =
 {"sync_wmb",		"",		0x00046b7c, 0xffffffff,	NODS,			0,		I1,		0,	0 },
 {"sync",		"",		0x00006b7c, 0xffffffff,	NODS,			0,		I1,		0,	0 },
 {"sync",		"1",		0x00006b7c, 0xffe0ffff,	NODS,			0,		I1,		0,	0 },
-{"synci",		"o(b)",		0x42000000, 0xffe00000,	RD_2|SM,		0,		I1,		0,	0 },
+{"synci",		"o(b)",		0x41800000, 0xffe00000,	RD_2|SM,		0,		I37,		0,	0 },
+{"synci",		"o(b)",		0x42000000, 0xffe00000,	RD_2|SM,		0,		I1,		0,	I37 },
 {"syscall",		"",		0x00008b7c, 0xffffffff,	TRAP,			0,		I1,		0,	0 },
 {"syscall",		"+J",		0x00008b7c, 0xfc00ffff,	TRAP,			0,		I1,		0,	0 },
-{"teqi",		"s,j",		0x41c00000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 },
+{"teqi",		"s,j",		0x41c00000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 },
 {"teq",			"s,t",		0x0000003c, 0xfc00ffff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
 {"teq",			"s,t,|",	0x0000003c, 0xfc000fff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
-{"teq",			"s,j",		0x41c00000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 }, /* teqi */
+{"teq",			"s,j",		0x41c00000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 }, /* teqi */
 {"teq",			"s,I",		0,    (int) M_TEQ_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"tgei",		"s,j",		0x41200000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 },
+{"tgei",		"s,j",		0x41200000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 },
 {"tge",			"s,t",		0x0000023c, 0xfc00ffff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
 {"tge",			"s,t,|",	0x0000023c, 0xfc000fff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
-{"tge",			"s,j",		0x41200000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 }, /* tgei */
+{"tge",			"s,j",		0x41200000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 }, /* tgei */
 {"tge",			"s,I",		0,    (int) M_TGE_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"tgeiu",		"s,j",		0x41600000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 },
+{"tgeiu",		"s,j",		0x41600000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 },
 {"tgeu",		"s,t",		0x0000043c, 0xfc00ffff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
 {"tgeu",		"s,t,|",	0x0000043c, 0xfc000fff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
-{"tgeu",		"s,j",		0x41600000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 }, /* tgeiu */
+{"tgeu",		"s,j",		0x41600000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 }, /* tgeiu */
 {"tgeu",		"s,I",		0,    (int) M_TGEU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"tlbinv",		"",		0x0000437c, 0xffffffff,	INSN_TLB,		0,		0,		TLBINV,	0 },
-{"tlbinvf",		"",		0x0000537c, 0xffffffff,	INSN_TLB,		0,		0,		TLBINV,	0 },
+{"tlbinv",		"",		0x0000437c, 0xffffffff,	INSN_TLB,		0,		I37,		TLBINV,	0 },
+{"tlbinvf",		"",		0x0000537c, 0xffffffff,	INSN_TLB,		0,		I37,		TLBINV,	0 },
 {"tlbginv",		"",		0x0000417c, 0xffffffff,	INSN_TLB,		0,		0,		IVIRT,	0 },
 {"tlbginvf",		"",		0x0000517c, 0xffffffff,	INSN_TLB,		0,		0,		IVIRT,	0 },
 {"tlbgp",		"",		0x0000017c, 0xffffffff,	INSN_TLB,		0,		0,		IVIRT,	0 },
@@ -1094,41 +1291,148 @@ const struct mips_opcode micromips_opcodes[] =
 {"tlbr",		"",		0x0000137c, 0xffffffff,	INSN_TLB,		0,		I1,		0,	0 },
 {"tlbwi",		"",		0x0000237c, 0xffffffff,	INSN_TLB,		0,		I1,		0,	0 },
 {"tlbwr",		"",		0x0000337c, 0xffffffff,	INSN_TLB,		0,		I1,		0,	0 },
-{"tlti",		"s,j",		0x41000000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 },
+{"tlti",		"s,j",		0x41000000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 },
 {"tlt",			"s,t",		0x0000083c, 0xfc00ffff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
 {"tlt",			"s,t,|",	0x0000083c, 0xfc000fff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
-{"tlt",			"s,j",		0x41000000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 }, /* tlti */
+{"tlt",			"s,j",		0x41000000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 }, /* tlti */
 {"tlt",			"s,I",		0,    (int) M_TLT_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"tltiu",		"s,j",		0x41400000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 },
+{"tltiu",		"s,j",		0x41400000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 },
 {"tltu",		"s,t",		0x00000a3c, 0xfc00ffff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
 {"tltu",		"s,t,|",	0x00000a3c, 0xfc000fff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
-{"tltu",		"s,j",		0x41400000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 }, /* tltiu */
+{"tltu",		"s,j",		0x41400000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 }, /* tltiu */
 {"tltu",		"s,I",		0,    (int) M_TLTU_I,	INSN_MACRO,		0,		I1,		0,	0 },
-{"tnei",		"s,j",		0x41800000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 },
+{"tnei",		"s,j",		0x41800000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 },
 {"tne",			"s,t",		0x00000c3c, 0xfc00ffff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
 {"tne",			"s,t,|",	0x00000c3c, 0xfc000fff,	RD_1|RD_2|TRAP,		0,		I1,		0,	0 },
-{"tne",			"s,j",		0x41800000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	0 }, /* tnei */
+{"tne",			"s,j",		0x41800000, 0xffe00000,	RD_1|TRAP,		0,		I1,		0,	I37 }, /* tnei */
 {"tne",			"s,I",		0,    (int) M_TNE_I,	INSN_MACRO,		0,		I1,		0,	0 },
 {"trunc.l.d",		"T,S",		0x5400633b, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I1,		0,	0 },
 {"trunc.l.s",		"T,S",		0x5400233b, 0xfc00ffff,	WR_1|RD_2|FP_S|FP_D,	0,		I1,		0,	0 },
 {"trunc.w.d",		"T,S",		0x54006b3b, 0xfc00ffff,	WR_1|RD_2|FP_S|FP_D,	0,		I1,		0,	0 },
 {"trunc.w.s",		"T,S",		0x54002b3b, 0xfc00ffff,	WR_1|RD_2|FP_S,		0,		I1,		0,	0 },
-{"uld",			"t,A(b)",	0,    (int) M_ULD_AB,	INSN_MACRO,		0,		I3,		0,	0 },
-{"ulh",			"t,A(b)",	0,    (int) M_ULH_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"ulhu",		"t,A(b)",	0,    (int) M_ULHU_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"ulw",			"t,A(b)",	0,    (int) M_ULW_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"usd",			"t,A(b)",	0,    (int) M_USD_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"ush",			"t,A(b)",	0,    (int) M_USH_AB,	INSN_MACRO,		0,		I1,		0,	0 },
-{"usw",			"t,A(b)",	0,    (int) M_USW_AB,	INSN_MACRO,		0,		I1,		0,	0 },
+{"uld",			"t,A(b)",	0,    (int) M_ULD_AB,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"ulh",			"t,A(b)",	0,    (int) M_ULH_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"ulhu",		"t,A(b)",	0,    (int) M_ULHU_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"ulw",			"t,A(b)",	0,    (int) M_ULW_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"usd",			"t,A(b)",	0,    (int) M_USD_AB,	INSN_MACRO,		0,		I3,		0,	I69 },
+{"ush",			"t,A(b)",	0,    (int) M_USH_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
+{"usw",			"t,A(b)",	0,    (int) M_USW_AB,	INSN_MACRO,		0,		I1,		0,	I37 },
 {"wait",		"",		0x0000937c, 0xffffffff,	NODS,			0,		I1,		0,	0 },
 {"wait",		"+J",		0x0000937c, 0xfc00ffff,	NODS,			0,		I1,		0,	0 },
 {"wrpgpr",		"t,r",		0x0000f17c, 0xfc00ffff,	RD_2,			0,		I1,		0,	0 },
 {"wsbh",		"t,r",		0x00007b3c, 0xfc00ffff,	WR_1|RD_2,		0,		I1,		0,	0 },
-{"xor",			"mf,mt,mg",	    0x4440,     0xffc0,	MOD_1|RD_3,		0,		I1,		0,	0 },
-{"xor",			"mf,mg,mx",	    0x4440,     0xffc0,	MOD_1|RD_2,		0,		I1,		0,	0 },
+{"xor",			"md,mt,ml",	    0x4408,     0xfc0f,	MOD_1|RD_3,		0,		I37,		0,	0 },
+{"xor",			"md,ml,mx",	    0x4408,     0xfc0f,	MOD_1|RD_2,		0,		I37,		0,	0 },
+{"xor",			"mf,mt,mg",	    0x4440,     0xffc0,	MOD_1|RD_3,		0,		I1,		0,	I37 },
+{"xor",			"mf,mg,mx",	    0x4440,     0xffc0,	MOD_1|RD_2,		0,		I1,		0,	I37 },
 {"xor",			"d,v,t",	0x00000310, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		I1,		0,	0 },
 {"xor",			"t,r,I",	0,    (int) M_XOR_I,	INSN_MACRO,		0,		I1,		0,	0 },
 {"xori",		"t,r,i",	0x70000000, 0xfc000000,	WR_1|RD_2,		0,		I1,		0,	0 },
+/* microMIPS R6 */
+{"aui",			"t,s,u",	0x10000000, 0xfc000000,	WR_1|RD_2,		0,		I37,		0,	0 },
+{"aluipc",		"t,u",		0x781f0000, 0xfc1f0000, WR_1,			RD_pc,		I37,		0,	0 },
+{"auipc",		"t,u",		0x781e0000, 0xfc1f0000, WR_1,			RD_pc,		I37,		0,	0 },
+{"daui",		"t,s,u",	0xf0000000, 0xfc000000,	WR_1|RD_2,		0,		I69,		0,	0 },
+
+{"align",		"d,s,t,+I",	0x0000001f, 0xfc0001ff,	WR_1|RD_2|RD_3,		0,		I37,		0,	0 },
+{"dalign",		"d,s,t,+O",	0x5800001c, 0xfc0000ff,	WR_1|RD_2|RD_3,		0,		I69,		0,	0 },
+{"bitswap",		"v,w",		0x00000b3c, 0xfc00ffff,	WR_1|RD_2,		0,		I37,		0,	0 },
+{"dbitswap",		"v,w",		0x58000b3c, 0xfc00ffff,	WR_1|RD_2,		0,		I69,		0,	0 },
+
+{"blezc",		"-t,p",		0xf4000000, 0xfc1f0000,	RD_1,			CBR,		I37,		0,	0 },
+{"bgezc",		"+;,p",		0xf4000000, 0xfc000000,	RD_1,			CBR,		I37,		0,	0 },
+{"bgec",		"-s,-v,p",	0xf4000000, 0xfc000000,	RD_1|RD_2,		CBR,		I37,		0,	0 },
+{"bgtzc",		"-t,p",		0xd4000000, 0xfc1f0000,	RD_1,			CBR,		I37,		0,	0 },
+{"bltzc",		"+;,p",		0xd4000000, 0xfc000000,	RD_1,			CBR,		I37,		0,	0 },
+{"bltc",		"-s,-v,p",	0xd4000000, 0xfc000000,	RD_1|RD_2,		CBR,		I37,		0,	0 },
+{"blezalc",		"-t,p",		0xc0000000, 0xfc1f0000,	RD_1|WR_31,		CBR,		I37,		0,	0 },
+{"bgezalc",		"+;,p",		0xc0000000, 0xfc000000,	RD_1|WR_31,		CBR,		I37,		0,	0 },
+{"bgeuc",		"-s,-v,p",	0xc0000000, 0xfc000000,	RD_1|RD_2,		CBR,		I37,		0,	0 },
+{"bgtzalc",		"-t,p",		0xe0000000, 0xfc1f0000,	RD_1|WR_31,		CBR,		I37,		0,	0 },
+{"bltzalc",		"+;,p",		0xe0000000, 0xfc000000,	RD_1|WR_31,		CBR,		I37,		0,	0 },
+{"bltuc",		"-s,-v,p",	0xe0000000, 0xfc000000,	RD_1|RD_2,		CBR,		I37,		0,	0 },
+
+{"jic",			"s,j",		0x80000000, 0xffe00000,	RD_1,			UBR,		I37,		0,	0 },
+{"jialc",		"s,j",		0xa0000000, 0xffe00000,	RD_1,			UBR,		I37,		0,	0 },
+
+{"cmp.af.s",		"D,S,T",	0x54000005, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.af.d",		"D,S,T",	0x54000015, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.eq.s",		"D,S,T",	0x54000085, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.eq.d",		"D,S,T",	0x54000095, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.le.s",		"D,S,T",	0x54000185, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.le.d",		"D,S,T",	0x54000195, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.lt.s",		"D,S,T",	0x54000105, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.lt.d",		"D,S,T",	0x54000115, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.ne.s",		"D,S,T",	0x540004c5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.ne.d",		"D,S,T",	0x540004d5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.or.s",		"D,S,T",	0x54000445, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.or.d",		"D,S,T",	0x54000455, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.ueq.s",		"D,S,T",	0x540000c5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.ueq.d",		"D,S,T",	0x540000d5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.ule.s",		"D,S,T",	0x540001c5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.ule.d",		"D,S,T",	0x540001d5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.ult.s",		"D,S,T",	0x54000145, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.ult.d",		"D,S,T",	0x54000155, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.un.s",		"D,S,T",	0x54000045, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.un.d",		"D,S,T",	0x54000055, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.une.s",		"D,S,T",	0x54000485, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.une.d",		"D,S,T",	0x54000495, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.saf.s",		"D,S,T",	0x54000205, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.saf.d",		"D,S,T",	0x54000215, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.seq.s",		"D,S,T",	0x54000285, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.seq.d",		"D,S,T",	0x54000295, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.sle.s",		"D,S,T",	0x54000385, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sle.d",		"D,S,T",	0x54000395, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.slt.s",		"D,S,T",	0x54000305, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.slt.d",		"D,S,T",	0x54000315, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.sne.s",		"D,S,T",	0x540006c5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sne.d",		"D,S,T",	0x540006d5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.sor.s",		"D,S,T",	0x54000645, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sor.d",		"D,S,T",	0x54000655, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.sueq.s",		"D,S,T",	0x540002c5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sueq.d",		"D,S,T",	0x540002d5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.sule.s",		"D,S,T",	0x540003c5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sule.d",		"D,S,T",	0x540003d5, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.sult.s",		"D,S,T",	0x54000345, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sult.d",		"D,S,T",	0x54000355, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"cmp.sun.s",		"D,S,T",	0x54000245, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sun.d",		"D,S,T",	0x54000255, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sune.s",		"D,S,T",	0x54000685, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"cmp.sune.d",		"D,S,T",	0x54000695, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+
+{"maddf.s",		"D,S,T",	0x540001b8, 0xfc0007ff,	MOD_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"maddf.d",		"D,S,T",	0x540003b8, 0xfc0007ff,	MOD_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"msubf.s",		"D,S,T",	0x540001f8, 0xfc0007ff,	MOD_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"msubf.d",		"D,S,T",	0x540003f8, 0xfc0007ff,	MOD_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"sel.s",		"D,S,T",	0x540000b8, 0xfc0007ff, MOD_1|RD_2|RD_3|FP_S,   0,		I37,		0,	0 },
+{"sel.d",		"D,S,T",	0x540002b8, 0xfc0007ff, MOD_1|RD_2|RD_3|FP_D,   0,		I37,		0,	0 },
+{"seleqz",		"d,s,t",	0x00000140, 0xfc0007ff, WR_1|RD_2|RD_3, 	0,		I37,		0,	0 },
+{"seleqz.s",		"D,S,T",	0x54000038, 0xfc0007ff, WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"seleqz.d",		"D,S,T",	0x54000238, 0xfc0007ff, WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"selnez",		"d,s,t",	0x00000180, 0xfc0007ff, WR_1|RD_2|RD_3, 	0,		I37,		0,	0 },
+{"selnez.s",		"D,S,T",	0x54000078, 0xfc0007ff, WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"selnez.d",		"D,S,T",	0x54000278, 0xfc0007ff, WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+
+{"class.s",		"+D,+S",	0x54000060, 0xfc00ffff,	WR_1|RD_2|FP_S,		0,		I37,		0,	0 },
+{"class.d",		"+D,+S",	0x54000260, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I37,		0,	0 },
+{"min.s",		"D,S,T",	0x54000003, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"min.d",		"D,S,T",	0x54000203, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"max.s",		"D,S,T",	0x5400000b, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"max.d",		"D,S,T",	0x5400020b, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"mina.s",		"D,S,T",	0x54000023, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"mina.d",		"D,S,T",	0x54000223, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"maxa.s",		"D,S,T",	0x5400002b, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_S,	0,		I37,		0,	0 },
+{"maxa.d",		"D,S,T",	0x5400022b, 0xfc0007ff,	WR_1|RD_2|RD_3|FP_D,	0,		I37,		0,	0 },
+{"rint.s",		"+D,+S",	0x54000020, 0xfc00ffff,	WR_1|RD_2|FP_S,		0,		I37,		0,	0 },
+{"rint.d",		"+D,+S",	0x54000220, 0xfc00ffff,	WR_1|RD_2|FP_D,		0,		I37,		0,	0 },
+
+{"bc1eqzc",		"+D,p",		0x41000000, 0xffe00000,	RD_1|FP_S,		CBR,		I37,		0,	0 },
+{"bc1nezc",		"+D,p",		0x41200000, 0xffe00000,	RD_1|FP_S,		CBR,		I37,		0,	0 },
+{"bc2eqzc",		"G,p",		0x41400000, 0xffe00000, RD_C2,			CBR,		I37,		0,	0 },
+{"bc2nezc",		"G,p",		0x41600000, 0xffe00000, RD_C2,			CBR,		I37,		0,	0 },
+{"dahi",		"s,mx,u",	0x42200000, 0xffe00000,	MOD_1,			0,		I69,		0,	0 },
+{"dati",		"s,mx,u",	0x42000000, 0xffe00000,	MOD_1,			0,		I69,		0,	0 },
+
 /* microMIPS Enhanced VA Scheme */
 {"lbue",		"t,+j(b)",	0x60006000, 0xfc00fe00, WR_1|RD_3|LM,		0,		0,		EVA,	0 },
 {"lbue",		"t,A(b)",	0,    (int) M_LBUE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
@@ -1140,24 +1444,28 @@ const struct mips_opcode micromips_opcodes[] =
 {"lhe",			"t,A(b)",	0,    (int) M_LHE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
 {"lle",			"t,+j(b)",	0x60006c00, 0xfc00fe00, WR_1|RD_3|LM,		0,		0,		EVA,	0 },
 {"lle",			"t,A(b)",	0,    (int) M_LLE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
+{"llxe",		"t,+j(b)",	0x60006400, 0xfc00fe00, WR_1|RD_3|LM|NODS,	NNODS,		0,		EVA_R6,	0 },
+{"llxe",		"t,A(b)",	0,    (int) M_LLXE_AB,	INSN_MACRO,		0,		0,		EVA_R6,	0 },
 {"lwe",			"t,+j(b)",	0x60006e00, 0xfc00fe00, WR_1|RD_3|LM,		0,		0,		EVA,	0 },
 {"lwe",			"t,A(b)",	0,    (int) M_LWE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
-{"lwle",		"t,+j(b)",	0x60006400, 0xfc00fe00, WR_1|RD_3|LM,		0,		0,		EVA,	0 },
-{"lwle",		"t,A(b)",	0,    (int) M_LWLE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
-{"lwre",		"t,+j(b)",	0x60006600, 0xfc00fe00, WR_1|RD_3|LM,		0,		0,		EVA,	0 },
-{"lwre",		"t,A(b)",	0,    (int) M_LWRE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
+{"lwle",		"t,+j(b)",	0x60006400, 0xfc00fe00, WR_1|RD_3|LM,		0,		0,		EVA,	I37 },
+{"lwle",		"t,A(b)",	0,    (int) M_LWLE_AB,	INSN_MACRO,		0,		0,		EVA,	I37 },
+{"lwre",		"t,+j(b)",	0x60006600, 0xfc00fe00, WR_1|RD_3|LM,		0,		0,		EVA,	I37 },
+{"lwre",		"t,A(b)",	0,    (int) M_LWRE_AB,	INSN_MACRO,		0,		0,		EVA,	I37 },
 {"sbe",			"t,+j(b)",	0x6000a800, 0xfc00fe00, WR_1|RD_3|SM,		0,		0,		EVA,	0 },
 {"sbe",			"t,A(b)",	0,    (int) M_SBE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
+{"scxe",		"t,+j(b)",	0x6000a000, 0xfc00fe00, MOD_1|RD_3|SM|NODS,	NNODS,		0,		EVA_R6,	0 },
+{"scxe",		"t,A(b)",	0,    (int) M_SCXE_AB,	INSN_MACRO,		0,		0,		EVA_R6,	0 },
 {"sce",			"t,+j(b)",	0x6000ac00, 0xfc00fe00, MOD_1|RD_3|SM,		0,		0,		EVA,	0 },
 {"sce",			"t,A(b)",	0,    (int) M_SCE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
 {"she",			"t,+j(b)",	0x6000aa00, 0xfc00fe00, WR_1|RD_3|SM,		0,		0,		EVA,	0 },
 {"she",			"t,A(b)",	0,    (int) M_SHE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
 {"swe",			"t,+j(b)",	0x6000ae00, 0xfc00fe00, WR_1|RD_3|SM,		0,		0,		EVA,	0 },
 {"swe",			"t,A(b)",	0,    (int) M_SWE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
-{"swle",		"t,+j(b)",	0x6000a000, 0xfc00fe00, WR_1|RD_3|SM,		0,		0,		EVA,	0 },
-{"swle",		"t,A(b)",	0,    (int) M_SWLE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
-{"swre",		"t,+j(b)",	0x6000a200, 0xfc00fe00, WR_1|RD_3|SM,		0,		0,		EVA,	0 },
-{"swre",		"t,A(b)",	0,    (int) M_SWRE_AB,	INSN_MACRO,		0,		0,		EVA,	0 },
+{"swle",		"t,+j(b)",	0x6000a000, 0xfc00fe00, WR_1|RD_3|SM,		0,		0,		EVA,	I37 },
+{"swle",		"t,A(b)",	0,    (int) M_SWLE_AB,	INSN_MACRO,		0,		0,		EVA,	I37 },
+{"swre",		"t,+j(b)",	0x6000a200, 0xfc00fe00, WR_1|RD_3|SM,		0,		0,		EVA,	I37 },
+{"swre",		"t,A(b)",	0,    (int) M_SWRE_AB,	INSN_MACRO,		0,		0,		EVA,	I37 },
 {"cachee",		"k,+j(b)",	0x6000a600, 0xfc00fe00, RD_3,			0,		0,		EVA,	0 },
 {"cachee",		"k,A(b)",	0,    (int) M_CACHEE_AB,INSN_MACRO,		0,		0,		EVA,	0 },
 {"prefe",		"k,+j(b)",	0x6000a400, 0xfc00fe00, RD_3|LM,		0,		0,		EVA,	0 },
@@ -1173,7 +1481,9 @@ const struct mips_opcode micromips_opcodes[] =
 {"addu_s.qb",		"d,s,t",	0x000004cd, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		0,		D32,	0 },
 {"addwc",		"d,s,t",	0x000003c5, 0xfc0007ff,	WR_1|RD_2|RD_3,		0,		0,		D32,	0 },
 {"bitrev",		"t,s",		0x0000313c, 0xfc00ffff,	WR_1|RD_2,		0,		0,		D32,	0 },
-{"bposge32",		"p",		0x43600000, 0xffff0000,	CBD,			0,		0,		D32,	0 },
+{"bposge32c",		"p",		0x43200000, 0xffff0000,	0,			CBR,		0,		D34,	0 },
+{"bposge32",		"p",		0x43200000, 0xffff0000,	0,			INSN2_ALIAS|CBR|CTC,		0,		D34,	0 },
+{"bposge32",		"p",		0x43600000, 0xffff0000,	CBD,			0,		0,		D32,	I37 },
 {"cmp.eq.ph",		"s,t",		0x00000005, 0xfc00ffff,	RD_1|RD_2,		0,		0,		D32,	0 },
 {"cmpgu.eq.qb",		"d,s,t",	0x000000c5, 0xfc0007ff, WR_1|RD_2|RD_3,		0,		0,		D32,	0 },
 {"cmp.le.ph",		"s,t",		0x00000085, 0xfc00ffff,	RD_1|RD_2,		0,		0,		D32,	0 },
@@ -1847,8 +2157,10 @@ const struct mips_opcode micromips_opcodes[] =
 {"ctcmsa",		"+l,d",		0x583e0016, 0xffff003f,	RD_2,			0,		0,		MSA,	0 },
 {"cfcmsa",		"+k,+n",	0x587e0016, 0xffff003f,	WR_1,			0,		0,		MSA,	0 },
 {"move.v",		"+d,+e",	0x58be0016, 0xffff003f,	WR_1|RD_2,		0,		0,		MSA,	0 },
-{"lsa",			"d,v,t,+~",	0x00000020, 0xfc00073f,	WR_1|RD_2|RD_3,		0,		0,		MSA,	0 },
-{"dlsa",		"d,v,t,+~",	0x58000020, 0xfc00073f,	WR_1|RD_2|RD_3,		0,		0,		MSA64,	0 },
+{"lsa",			"d,v,t,+~",	0x00000020, 0xfc00073f,	WR_1|RD_2|RD_3,		0,		0,		MSA,	I37 },
+{"lsa",			"d,v,t,+.",	0x0000000f, 0xfc0001ff,	WR_1|RD_2|RD_3,		0,		I37,		MSA,	0 },
+{"dlsa",		"d,v,t,+~",	0x58000020, 0xfc00073f,	WR_1|RD_2|RD_3,		0,		0,		MSA64,	I69 },
+{"dlsa",		"d,v,t,+.",	0x58000108, 0xfc0001ff,	WR_1|RD_2|RD_3,		0,		I69,		MSA64,	0 },
 };
 
 const int bfd_micromips_num_opcodes =

@@ -63,12 +63,17 @@ struct mips_regnum
   int fp0;
   int fp_implementation_revision;
   int fp_control_status;
+  int config5;
   int badvaddr;		/* Bad vaddr for addressing exception.  */
   int cause;		/* Describes last exception.  */
   int hi;		/* Multiply/divide temp.  */
   int lo;		/* ...  */
   int dspacc;		/* SmartMIPS/DSP accumulators.  */
   int dspctl;		/* DSP control.  */
+  int w0;
+  int msa_ir;
+  int msa_csr;
+  int linux_restart;
 };
 extern const struct mips_regnum *mips_regnum (struct gdbarch *gdbarch);
 
@@ -80,6 +85,15 @@ enum mips_fpu_type
   MIPS_FPU_DOUBLE,		/* Full double precision floating point.  */
   MIPS_FPU_SINGLE,		/* Single precision floating point (R4650).  */
   MIPS_FPU_NONE			/* No floating point.  */
+};
+
+enum mips_fpu_mode
+{
+  MIPS_FPU_UNKNOWN = 0,
+  MIPS_FPU_32,		/* FR=0, 32bit FP regs, doubles in pairs.  */
+  MIPS_FPU_64,		/* FR=1, 64bit FP regs.  */
+  MIPS_FPU_HYBRID,	/* FR=1, FRE=1, 64bit FP regs, odd singles in upper half
+			   of even doubles.  */
 };
 
 /* MIPS specific per-architecture information.  */
@@ -113,9 +127,38 @@ struct gdbarch_tdep
   int register_size_valid_p;
   int register_size;
 
+  /* The floating-point register mode determined at run time.
+     This corresponds to CP0 Status register's FR bit and Config5's FRE bit
+     unless fixed_p is set.  */
+  int fp_register_mode_fixed_p;
+  enum mips_fpu_mode fp_mode;
+
+  /* ISA-specific data types.  */
+  struct type *config5_type;
+  struct type *fp_rm_type;
+  struct type *fp_cflags_type;
+  struct type *fp_csr_type;
+  struct type *fp_ir_type;
+  struct type *fp32_type;
+  struct type *fp64_type;
+  struct type *fp96_type;
+  struct type *msa_128b_type;
+  struct type *msa_csr_type;
+  struct type *msa_ir_type;
+
   /* Return the expected next PC if FRAME is stopped at a syscall
      instruction.  */
   CORE_ADDR (*syscall_next_pc) (struct frame_info *frame);
+};
+
+/* MIPS specific per-architecture initialization information.  */
+struct gdbarch_tdep_info
+{
+  /* Target description data.  */
+  struct tdesc_arch_data *tdesc_data;
+
+  /* The floating-point register mode determined at run time.  */
+  enum mips_fpu_mode fp_mode;
 };
 
 /* Register numbers of various important registers.  */
@@ -137,11 +180,11 @@ enum
   MIPS_EMBED_BADVADDR_REGNUM = 35,
   MIPS_EMBED_CAUSE_REGNUM = 36,
   MIPS_EMBED_PC_REGNUM = 37,
-  MIPS_EMBED_FP0_REGNUM = 38,
+  MIPS_EMBED_FP0_REGNUM = 38,	/* 32 double FP registers */
   MIPS_UNUSED_REGNUM = 73,	/* Never used, FIXME.  */
   MIPS_FIRST_EMBED_REGNUM = 74,	/* First CP0 register for embedded use.  */
   MIPS_PRID_REGNUM = 89,	/* Processor ID.  */
-  MIPS_LAST_EMBED_REGNUM = 89	/* Last one.  */
+  MIPS_LAST_EMBED_REGNUM = 89,	/* Last one.  */
 };
 
 /* Defined in mips-tdep.c and used in remote-mips.c.  */

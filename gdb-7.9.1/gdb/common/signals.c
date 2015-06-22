@@ -344,6 +344,10 @@ gdb_signal_from_host (int hostsig)
       else if (64 <= hostsig && hostsig <= 127)
 	return (enum gdb_signal)
 	  (hostsig - 64 + (int) GDB_SIGNAL_REALTIME_64);
+      else if (hostsig == 128)
+	/* Some platforms, such as Linux MIPS, have NSIG == 128, in which case
+	   signal 128 is the highest realtime signal.  */
+	return GDB_SIGNAL_REALTIME_128;
       else
 	error (_("GDB bug: target.c (gdb_signal_from_host): "
 	       "unrecognized real-time signal"));
@@ -608,6 +612,12 @@ do_gdb_signal_to_host (enum gdb_signal oursig,
 	  /* This block of signals is continuous, and
              GDB_SIGNAL_REALTIME_64 is 64 by definition.  */
 	  retsig = (int) oursig - (int) GDB_SIGNAL_REALTIME_64 + 64;
+	}
+      else if (oursig == GDB_SIGNAL_REALTIME_128)
+	{
+	  /* GDB_SIGNAL_REALTIME_128 isn't contiguous with
+	     GDB_SIGNAL_REALTIME_127. It is 128 by definition.  */
+	  retsig = 128;
 	}
 
       if (retsig >= REALTIME_LO && retsig < REALTIME_HI)

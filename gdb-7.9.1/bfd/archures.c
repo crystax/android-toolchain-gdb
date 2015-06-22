@@ -192,6 +192,7 @@ DESCRIPTION
 .#define bfd_mach_mipsisa64r5           68
 .#define bfd_mach_mipsisa64r6           69
 .#define bfd_mach_mips_micromips        96
+.#define bfd_mach_mips_micromipsr6      97
 .  bfd_arch_i386,      {* Intel 386 *}
 .#define bfd_mach_i386_intel_syntax	(1 << 0)
 .#define bfd_mach_i386_i8086		(1 << 1)
