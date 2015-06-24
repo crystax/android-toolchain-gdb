@@ -283,10 +283,62 @@ remote_prepare (char *name)
 /* Open a connection to a remote debugger.
    NAME is the filename used for communication.  */
 
+// ANDROID BEGIN.
+#ifndef USE_WIN32API
+#include <sys/un.h>
+#endif
+// ANDROID END.
+
 void
 remote_open (char *name)
 {
   char *port_str;
+
+  // ANDROID BEGIN.
+  // The Android NDK uses Unix domain sockets because applications
+  // aren't allowed to bind to localhost TCP sockets, and developers
+  // debugging on production devices can't get root.
+  // Typical ndk-gdb usage is "gdbserver +debug-socket --attach 123".
+  if (name[0] == '+')
+    {
+#ifdef USE_WIN32API
+      error ("Only <host>:<port> is supported on this platform.");
+#else
+      struct sockaddr_un sockaddr;
+      socklen_t sockaddrlen;
+
+      listen_desc = socket (AF_UNIX, SOCK_STREAM, 0);
+      if (listen_desc == -1)
+        perror_with_name ("Can't create Unix domain socket");
+
+      /* Skip the initial '+'. */
+      name++;
+
+      memset (&sockaddr, 0, sizeof sockaddr);
+      sockaddr.sun_family = AF_UNIX;
+      strlcpy (sockaddr.sun_path, name, sizeof (sockaddr.sun_path));
+      sockaddrlen = sizeof (sockaddr.sun_family) +
+          strlen (sockaddr.sun_path) + 1;
+
+      unlink (sockaddr.sun_path);
+
+      if (bind (listen_desc, (struct sockaddr *) &sockaddr, sockaddrlen)
+          || listen (listen_desc, 1))
+        perror_with_name ("Can't bind Unix domain socket");
+
+      fprintf (stderr, "Listening on Unix domain socket '%s'\n",
+               sockaddr.sun_path);
+      fflush (stderr);
+
+      /* Register the event loop handler.  */
+      add_file_handler (listen_desc, handle_accept_event, NULL);
+
+      transport_is_reliable = 1;
+#endif
+
+      return;
+    }
+  // ANDROID END.
 
   port_str = strchr (name, ':');
 #ifdef USE_WIN32API
