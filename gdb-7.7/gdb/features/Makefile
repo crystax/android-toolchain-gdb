@@ -42,8 +42,9 @@ WHICH = aarch64 \
 	i386/amd64-mpx i386/amd64-mpx-linux \
 	i386/x32 i386/x32-linux \
 	i386/x32-avx i386/x32-avx-linux \
-	mips-linux mips-dsp-linux \
-	mips64-linux mips64-dsp-linux \
+	mips-linux mips-dsp-linux mips-fpu64-linux mips-fpu64-dsp-linux \
+	mips-msa-linux \
+	mips64-linux mips64-dsp-linux mips64-msa-linux \
 	nios2-linux \
 	rs6000/powerpc-32 \
 	rs6000/powerpc-32l rs6000/powerpc-altivec32l rs6000/powerpc-e500l \
@@ -79,8 +80,12 @@ i386/x32-avx-expedite = rbp,rsp,rip
 i386/x32-avx-linux-expedite = rbp,rsp,rip
 mips-expedite = r29,pc
 mips-dsp-expedite = r29,pc
+mips-fpu64-expedite = r29,pc
+mips-fpu64-dsp-expedite = r29,pc
+mips-msa-expedite = r29,pc
 mips64-expedite = r29,pc
 mips64-dsp-expedite = r29,pc
+mips64-msa-expedite = r29,pc
 nios2-linux-expedite = sp,pc
 powerpc-expedite = r1,pc
 rs6000/powerpc-cell32l-expedite = r1,pc,r0,orig_r3,r4

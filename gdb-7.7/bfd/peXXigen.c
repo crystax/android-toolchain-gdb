@@ -2976,27 +2976,6 @@ u16_mbtouc (wchar_t * puc, const unsigned short * s, unsigned int n)
 }
 #endif /* HAVE_WCHAR_H and not Cygwin/Mingw */
 
-#ifdef __APPLE__
-/* wcsncasecmp isn't always defined in Mac SDK */
-static int
-wcsncasecmp(const wchar_t *s1, const wchar_t *s2, size_t n)
-{
-	wchar_t c1, c2;
-
-	if (n == 0)
-		return (0);
-	for (; *s1; s1++, s2++) {
-		c1 = towlower(*s1);
-		c2 = towlower(*s2);
-		if (c1 != c2)
-			return ((int)c1 - c2);
-		if (--n == 0)
-			return (0);
-	}
-	return (-*s2);
-}
-#endif
-
 /* Perform a comparison of two entries.  */
 static signed int
 rsrc_cmp (bfd_boolean is_name, rsrc_entry * a, rsrc_entry * b)
