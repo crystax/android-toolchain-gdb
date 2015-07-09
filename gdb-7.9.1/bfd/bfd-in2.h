@@ -1953,6 +1953,7 @@ enum bfd_architecture
 #define bfd_mach_mipsisa64r5           68
 #define bfd_mach_mipsisa64r6           69
 #define bfd_mach_mips_micromips        96
+#define bfd_mach_mips_micromipsr6      97
   bfd_arch_i386,      /* Intel 386 */
 #define bfd_mach_i386_intel_syntax     (1 << 0)
 #define bfd_mach_i386_i8086            (1 << 1)
@@ -2921,6 +2922,10 @@ to compensate for the borrow when the low bits are added.  */
   BFD_RELOC_MICROMIPS_7_PCREL_S1,
   BFD_RELOC_MICROMIPS_10_PCREL_S1,
   BFD_RELOC_MICROMIPS_16_PCREL_S1,
+  BFD_RELOC_MICROMIPS_21_PCREL_S1,
+  BFD_RELOC_MICROMIPS_26_PCREL_S1,
+  BFD_RELOC_MICROMIPS_18_PCREL_S3,
+  BFD_RELOC_MICROMIPS_19_PCREL_S2,
 
 /* MIPS PC-relative relocations.  */
   BFD_RELOC_MIPS_21_PCREL_S2,
@@ -2933,6 +2938,8 @@ to compensate for the borrow when the low bits are added.  */
   BFD_RELOC_MICROMIPS_HI16,
   BFD_RELOC_MICROMIPS_HI16_S,
   BFD_RELOC_MICROMIPS_LO16,
+  BFD_RELOC_MICROMIPS_HI16_S_PCREL,
+  BFD_RELOC_MICROMIPS_LO16_PCREL,
 
 /* MIPS ELF relocations.  */
   BFD_RELOC_MIPS_GOT16,

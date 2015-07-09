@@ -199,6 +199,7 @@ struct gdbarch
   gdbarch_dwarf2_reg_to_regnum_ftype *dwarf2_reg_to_regnum;
   gdbarch_register_name_ftype *register_name;
   gdbarch_register_type_ftype *register_type;
+  gdbarch_regcache_changed_ftype *regcache_changed;
   gdbarch_dummy_id_ftype *dummy_id;
   int deprecated_fp_regnum;
   gdbarch_push_dummy_call_ftype *push_dummy_call;
@@ -526,6 +527,7 @@ verify_gdbarch (struct gdbarch *gdbarch)
   if (gdbarch->register_name == 0)
     fprintf_unfiltered (log, "\n\tregister_name");
   /* Skip verify of register_type, has predicate.  */
+  /* Skip verify of regcache_changed, has predicate.  */
   /* Skip verify of dummy_id, has predicate.  */
   /* Skip verify of deprecated_fp_regnum, invalid_p == 0 */
   /* Skip verify of push_dummy_call, has predicate.  */
@@ -1167,6 +1169,12 @@ gdbarch_dump (struct gdbarch *gdbarch, struct ui_file *file)
   fprintf_unfiltered (file,
                       "gdbarch_dump: record_special_symbol = <%s>\n",
                       host_address_to_string (gdbarch->record_special_symbol));
+  fprintf_unfiltered (file,
+                      "gdbarch_dump: gdbarch_regcache_changed_p() = %d\n",
+                      gdbarch_regcache_changed_p (gdbarch));
+  fprintf_unfiltered (file,
+                      "gdbarch_dump: regcache_changed = <%s>\n",
+                      host_address_to_string (gdbarch->regcache_changed));
   fprintf_unfiltered (file,
                       "gdbarch_dump: register_name = <%s>\n",
                       host_address_to_string (gdbarch->register_name));
@@ -2108,6 +2116,30 @@ set_gdbarch_register_type (struct gdbarch *gdbarch,
                            gdbarch_register_type_ftype register_type)
 {
   gdbarch->register_type = register_type;
+}
+
+int
+gdbarch_regcache_changed_p (struct gdbarch *gdbarch)
+{
+  gdb_assert (gdbarch != NULL);
+  return gdbarch->regcache_changed != NULL;
+}
+
+int
+gdbarch_regcache_changed (struct gdbarch *gdbarch, struct regcache *regcache)
+{
+  gdb_assert (gdbarch != NULL);
+  gdb_assert (gdbarch->regcache_changed != NULL);
+  if (gdbarch_debug >= 2)
+    fprintf_unfiltered (gdb_stdlog, "gdbarch_regcache_changed called\n");
+  return gdbarch->regcache_changed (gdbarch, regcache);
+}
+
+void
+set_gdbarch_regcache_changed (struct gdbarch *gdbarch,
+                              gdbarch_regcache_changed_ftype regcache_changed)
+{
+  gdbarch->regcache_changed = regcache_changed;
 }
 
 int

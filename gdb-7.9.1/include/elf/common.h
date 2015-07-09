@@ -565,6 +565,7 @@
 					/*   note name must be "LINUX".  */
 #define NT_ARM_HW_WATCH	0x403		/* AArch hardware watchpoint registers */
 					/*   note name must be "LINUX".  */
+#define NT_MIPS_MSA	0x600		/* MIPS MSA vector registers. */
 #define NT_SIGINFO	0x53494749	/* Fields of siginfo_t.  */
 #define NT_FILE		0x46494c45	/* Description of mapped files.  */
 

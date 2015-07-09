@@ -75,7 +75,7 @@ enum
 
     MIPS_LINUX_SIGRTMIN = 32,
     MIPS_LINUX_SIGRT64 = 64,
-    MIPS_LINUX_SIGRTMAX = 127,
+    MIPS_LINUX_SIGRTMAX = 128,
   };
 
 /* Figure out where the longjmp will land.
@@ -140,8 +140,9 @@ mips_supply_gregset (struct regcache *regcache,
   for (regi = EF_REG0 + 1; regi <= EF_REG31; regi++)
     supply_32bit_reg (regcache, regi - EF_REG0, regp + regi);
 
-  if (mips_linux_restart_reg_p (gdbarch))
-    supply_32bit_reg (regcache, MIPS_RESTART_REGNUM, regp + EF_REG0);
+  if (mips_regnum (gdbarch)->linux_restart >= 0)
+    supply_32bit_reg (regcache, mips_regnum (gdbarch)->linux_restart,
+		      regp + EF_REG0);
 
   supply_32bit_reg (regcache, mips_regnum (gdbarch)->lo, regp + EF_LO);
   supply_32bit_reg (regcache, mips_regnum (gdbarch)->hi, regp + EF_HI);
@@ -190,7 +191,9 @@ mips_fill_gregset (const struct regcache *regcache,
       mips_fill_gregset (regcache, gregsetp, mips_regnum (gdbarch)->badvaddr);
       mips_fill_gregset (regcache, gregsetp, MIPS_PS_REGNUM);
       mips_fill_gregset (regcache, gregsetp, mips_regnum (gdbarch)->cause);
-      mips_fill_gregset (regcache, gregsetp, MIPS_RESTART_REGNUM);
+      if (mips_regnum (gdbarch)->linux_restart >= 0)
+	mips_fill_gregset (regcache, gregsetp,
+			   mips_regnum (gdbarch)->linux_restart);
       return;
    }
 
@@ -213,8 +216,7 @@ mips_fill_gregset (const struct regcache *regcache,
     regaddr = EF_CP0_STATUS;
   else if (regno == mips_regnum (gdbarch)->cause)
     regaddr = EF_CP0_CAUSE;
-  else if (mips_linux_restart_reg_p (gdbarch)
-	   && regno == MIPS_RESTART_REGNUM)
+  else if (regno == mips_regnum (gdbarch)->linux_restart)
     regaddr = EF_REG0;
   else
     regaddr = -1;
@@ -386,8 +388,8 @@ mips64_supply_gregset (struct regcache *regcache,
     supply_64bit_reg (regcache, regi - MIPS64_EF_REG0,
 		      (const gdb_byte *) (regp + regi));
 
-  if (mips_linux_restart_reg_p (gdbarch))
-    supply_64bit_reg (regcache, MIPS_RESTART_REGNUM,
+  if (mips_regnum (gdbarch)->linux_restart >= 0)
+    supply_64bit_reg (regcache, mips_regnum (gdbarch)->linux_restart,
 		      (const gdb_byte *) (regp + MIPS64_EF_REG0));
 
   supply_64bit_reg (regcache, mips_regnum (gdbarch)->lo,
@@ -442,7 +444,8 @@ mips64_fill_gregset (const struct regcache *regcache,
 			   mips_regnum (gdbarch)->badvaddr);
       mips64_fill_gregset (regcache, gregsetp, MIPS_PS_REGNUM);
       mips64_fill_gregset (regcache, gregsetp,  mips_regnum (gdbarch)->cause);
-      mips64_fill_gregset (regcache, gregsetp, MIPS_RESTART_REGNUM);
+      mips64_fill_gregset (regcache, gregsetp,
+			   mips_regnum (gdbarch)->linux_restart);
       return;
    }
 
@@ -460,8 +463,7 @@ mips64_fill_gregset (const struct regcache *regcache,
     regaddr = MIPS64_EF_CP0_STATUS;
   else if (regno == mips_regnum (gdbarch)->cause)
     regaddr = MIPS64_EF_CP0_CAUSE;
-  else if (mips_linux_restart_reg_p (gdbarch)
-	   && regno == MIPS_RESTART_REGNUM)
+  else if (regno == mips_regnum (gdbarch)->linux_restart)
     regaddr = MIPS64_EF_REG0;
   else
     regaddr = -1;
@@ -958,6 +960,111 @@ static const struct tramp_frame micromips_linux_n64_rt_sigframe = {
 };
 
 /* *INDENT-OFF* */
+/* The unwinder for extended context in signal frames. Extended context looks
+   like this, at the beginning of a larger struct:
+
+   struct extcontext {
+     unsigned int      magic;
+     unsigned int      size;
+   };
+
+   struct msa_extcontext {
+     struct extcontext	  ext;
+     unsigned long long	  wr[32];
+     unsigned int	  csr;
+   };  */
+/* *INDENT-ON* */
+
+#define EXTCONTEXT_MAGIC_OFFSET	    (0 * 4)
+#define EXTCONTEXT_SIZE_OFFSET	    (1 * 4)
+#define EXTCONTEXT_SIZE		    (2 * 4)
+
+#define END_EXTCONTEXT_MAGIC  0x78454e44  /* xEND */
+#define MSA_EXTCONTEXT_MAGIC  0x784d5341  /* xMSA */
+
+#define MSA_EXTCONTEXT_WR_OFFSET    EXTCONTEXT_SIZE
+#define MSA_EXTCONTEXT_WREG_SIZE    8
+#define MSA_EXTCONTEXT_CSR_OFFSET   (EXTCONTEXT_SIZE \
+				     + 32 * MSA_EXTCONTEXT_WREG_SIZE)
+
+static void
+mips_linux_msa_extcontext_init (struct frame_info *this_frame,
+				struct trad_frame_cache *this_cache,
+				CORE_ADDR extcontext_base)
+{
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
+  const struct mips_regnum *regs = mips_regnum (gdbarch);
+  unsigned int i;
+
+  if (regs->w0 != -1)
+    for (i = 0; i < 32; ++i)
+      trad_frame_set_reg_addr (this_cache, regs->w0 + i
+			      + gdbarch_num_regs (gdbarch),
+			       extcontext_base + MSA_EXTCONTEXT_WR_OFFSET
+			       + i * MSA_EXTCONTEXT_WREG_SIZE);
+  if (regs->msa_csr != -1)
+    trad_frame_set_reg_addr (this_cache, regs->msa_csr,
+			     extcontext_base + MSA_EXTCONTEXT_CSR_OFFSET);
+}
+
+static void
+mips_linux_extcontext_init (struct frame_info *this_frame,
+			    struct trad_frame_cache *this_cache,
+			    CORE_ADDR extcontext_base)
+{
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
+  gdb_byte buf[4];
+  uint32_t magic, size;
+  unsigned int i;
+
+  /* Limit the extended context blocks read */
+  for (i = 0; i < 10; ++i)
+    {
+      /* Read magic.  */
+      if (!safe_frame_unwind_memory (this_frame,
+				     extcontext_base + EXTCONTEXT_MAGIC_OFFSET,
+				     buf, 4))
+	break;
+      magic = extract_unsigned_integer (buf, 4, byte_order);
+      /* Stop at the END magic.  */
+      if (magic == END_EXTCONTEXT_MAGIC)
+	break;
+      /* Read size of extended context. */
+      if (!safe_frame_unwind_memory (this_frame,
+				     extcontext_base + EXTCONTEXT_SIZE_OFFSET,
+				     buf, 4))
+	break;
+      size = extract_unsigned_integer (buf, 4, byte_order);
+      /* We don't want to loop forever or fly off into the distance
+       * if something went terribly wrong.  */
+      if (!size || size > 4096)
+	{
+	  warning (_("%s: bad extended context size 0x%x"),
+		   __func__, size);
+	  break;
+	}
+      /* The rest depends on what type of context it is.  */
+      switch (magic)
+	{
+	case MSA_EXTCONTEXT_MAGIC:
+	  mips_linux_msa_extcontext_init (this_frame, this_cache,
+					  extcontext_base);
+	  break;
+
+	default:
+	  if (gdbarch_debug)
+	    fprintf_unfiltered (gdb_stdlog,
+				"%s: unrecognised extcontext magic = 0x%08x\n",
+				__func__, magic);
+	  break;
+	}
+      /* And skip to the next block of extended context.  */
+      extcontext_base += size;
+    }
+}
+
+/* *INDENT-OFF* */
 /* The unwinder for o32 signal frames.  The legacy structures look
    like this:
 
@@ -966,6 +1073,7 @@ static const struct tramp_frame micromips_linux_n64_rt_sigframe = {
      u32 sf_code[2];           [signal trampoline or fill]
      struct sigcontext sf_sc;
      sigset_t sf_mask;
+     struct extcontext sf_extcontext[0];
    };
 
    Pre-2.6.12 sigcontext:
@@ -1031,22 +1139,36 @@ static const struct tramp_frame micromips_linux_n64_rt_sigframe = {
      [Alignment hole of four bytes]
      struct sigcontext uc_mcontext;
      sigset_t          uc_sigmask;
+     struct extcontext uc_extcontext[0];
    };  */
 /* *INDENT-ON* */
 
+#define SIGCONTEXT_SIZE		     (74 * 8)
+#define SIGSET_T_SIZE		     (2 * 8)
+
 #define SIGFRAME_SIGCONTEXT_OFFSET   (6 * 4)
+#define SIGFRAME_EXTCONTEXT_OFFSET   (SIGFRAME_SIGCONTEXT_OFFSET \
+				      + SIGCONTEXT_SIZE \
+				      + SIGSET_T_SIZE)
 
 #define RTSIGFRAME_SIGINFO_SIZE      128
 #define STACK_T_SIZE                 (3 * 4)
 #define UCONTEXT_SIGCONTEXT_OFFSET   (2 * 4 + STACK_T_SIZE + 4)
+#define UCONTEXT_EXTCONTEXT_OFFSET   (UCONTEXT_SIGCONTEXT_OFFSET \
+				      + SIGCONTEXT_SIZE \
+				      + SIGSET_T_SIZE)
 #define RTSIGFRAME_SIGCONTEXT_OFFSET (SIGFRAME_SIGCONTEXT_OFFSET \
 				      + RTSIGFRAME_SIGINFO_SIZE \
 				      + UCONTEXT_SIGCONTEXT_OFFSET)
+#define RTSIGFRAME_EXTCONTEXT_OFFSET (SIGFRAME_SIGCONTEXT_OFFSET \
+				      + RTSIGFRAME_SIGINFO_SIZE \
+				      + UCONTEXT_EXTCONTEXT_OFFSET)
 
 #define SIGCONTEXT_PC       (1 * 8)
 #define SIGCONTEXT_REGS     (2 * 8)
 #define SIGCONTEXT_FPREGS   (34 * 8)
 #define SIGCONTEXT_FPCSR    (66 * 8 + 4)
+#define SIGCONTEXT_USEDMATH (67 * 8 + 4)
 #define SIGCONTEXT_DSPCTL   (68 * 8 + 0)
 #define SIGCONTEXT_HI       (69 * 8)
 #define SIGCONTEXT_LO       (70 * 8)
@@ -1061,6 +1183,19 @@ static const struct tramp_frame micromips_linux_n64_rt_sigframe = {
 
 #define SIGCONTEXT_REG_SIZE 8
 
+#ifndef USED_FP
+#define USED_FP		    (1 << 0)
+#endif
+#ifndef USED_FR1
+#define USED_FR1	    (1 << 1)
+#endif
+#ifndef USED_HYBRID_FPRS
+#define USED_HYBRID_FPRS    (1 << 2)
+#endif
+#ifndef USED_EXTCONTEXT
+#define USED_EXTCONTEXT	    (1 << 3)
+#endif
+
 static void
 mips_linux_o32_sigframe_init (const struct tramp_frame *self,
 			      struct frame_info *this_frame,
@@ -1070,9 +1205,12 @@ mips_linux_o32_sigframe_init (const struct tramp_frame *self,
   struct gdbarch *gdbarch = get_frame_arch (this_frame);
   int ireg;
   CORE_ADDR frame_sp = get_frame_sp (this_frame);
-  CORE_ADDR sigcontext_base;
+  CORE_ADDR sigcontext_base, extcontext_base;
   const struct mips_regnum *regs = mips_regnum (gdbarch);
   CORE_ADDR regs_base;
+  gdb_byte buf[4];
+  uint32_t used_math;
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
 
   if (self == &mips_linux_o32_sigframe
       || self == &micromips_linux_o32_sigframe)
@@ -1090,9 +1228,9 @@ mips_linux_o32_sigframe_init (const struct tramp_frame *self,
   else
     regs_base = sigcontext_base;
 
-  if (mips_linux_restart_reg_p (gdbarch))
+  if (mips_regnum (gdbarch)->linux_restart >= 0)
     trad_frame_set_reg_addr (this_cache,
-			     (MIPS_RESTART_REGNUM
+			     (mips_regnum (gdbarch)->linux_restart
 			      + gdbarch_num_regs (gdbarch)),
 			     regs_base + SIGCONTEXT_REGS);
 
@@ -1103,6 +1241,14 @@ mips_linux_o32_sigframe_init (const struct tramp_frame *self,
 			     (regs_base + SIGCONTEXT_REGS
 			      + ireg * SIGCONTEXT_REG_SIZE));
 
+  /* Read the used_math field.  */
+  if (safe_frame_unwind_memory (this_frame,
+				sigcontext_base + SIGCONTEXT_USEDMATH,
+				buf, 4))
+    used_math = extract_unsigned_integer (buf, 4, gdbarch_byte_order (gdbarch));
+  else
+    used_math = 0;
+
   /* The way that floating point registers are saved, unfortunately,
      depends on the architecture the kernel is built for.  For the r3000 and
      tx39, four bytes of each register are at the beginning of each of the
@@ -1111,8 +1257,27 @@ mips_linux_o32_sigframe_init (const struct tramp_frame *self,
      and the high bits are the odd-numbered register.  Assume the latter
      layout, since we can't tell, and it's much more common.  Which bits are
      the "high" bits depends on endianness.  */
+  /* FIXME if !used_math, should probably say unavailable or something */
   for (ireg = 0; ireg < 32; ireg++)
-    if ((gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG) != (ireg & 1))
+#if 0
+      trad_frame_set_reg_addr (this_cache, ireg + regs->fp0,
+			       (sigcontext_base + SIGCONTEXT_FPREGS
+				+ (ireg & ~1) * SIGCONTEXT_REG_SIZE));
+#else
+  /* FIXME probably should use SR for MIPS64 for more reliability with old
+   * kernels */
+    if (used_math & USED_FR1)
+      {
+	trad_frame_set_reg_addr (this_cache,
+				 ireg + regs->fp0,
+				 (sigcontext_base + SIGCONTEXT_FPREGS
+				  + ireg * SIGCONTEXT_REG_SIZE));
+	trad_frame_set_reg_addr (this_cache,
+				 ireg + regs->fp0 + gdbarch_num_regs (gdbarch),
+				 (sigcontext_base + SIGCONTEXT_FPREGS
+				  + ireg * SIGCONTEXT_REG_SIZE));
+      }
+    else if ((gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG) != (ireg & 1))
       trad_frame_set_reg_addr (this_cache,
 			       ireg + regs->fp0 + gdbarch_num_regs (gdbarch),
 			       (sigcontext_base + SIGCONTEXT_FPREGS + 4
@@ -1122,6 +1287,7 @@ mips_linux_o32_sigframe_init (const struct tramp_frame *self,
 			       ireg + regs->fp0 + gdbarch_num_regs (gdbarch),
 			       (sigcontext_base + SIGCONTEXT_FPREGS
 				+ (ireg & ~1) * SIGCONTEXT_REG_SIZE));
+#endif
 
   trad_frame_set_reg_addr (this_cache,
 			   regs->pc + gdbarch_num_regs (gdbarch),
@@ -1131,6 +1297,20 @@ mips_linux_o32_sigframe_init (const struct tramp_frame *self,
 			   (regs->fp_control_status
 			    + gdbarch_num_regs (gdbarch)),
 			   sigcontext_base + SIGCONTEXT_FPCSR);
+
+  if (used_math & USED_EXTCONTEXT)
+    {
+      /* Extended context is present,
+	 find base of extended context list.  */
+      if (self == &mips_linux_o32_sigframe)
+	extcontext_base = frame_sp + SIGFRAME_EXTCONTEXT_OFFSET;
+      else
+	extcontext_base = frame_sp + RTSIGFRAME_EXTCONTEXT_OFFSET;
+
+      /* And read the blocks of extended context.  */
+      mips_linux_extcontext_init (this_frame, this_cache,
+				  extcontext_base);
+    }
 
   if (regs->dspctl != -1)
     trad_frame_set_reg_addr (this_cache,
@@ -1282,9 +1462,9 @@ mips_linux_n32n64_sigframe_init (const struct tramp_frame *self,
   else
     sigcontext_base = frame_sp + N64_SIGFRAME_SIGCONTEXT_OFFSET;
 
-  if (mips_linux_restart_reg_p (gdbarch))
+  if (mips_regnum (gdbarch)->linux_restart >= 0)
     trad_frame_set_reg_addr (this_cache,
-			     (MIPS_RESTART_REGNUM
+			     (mips_regnum (gdbarch)->linux_restart
 			      + gdbarch_num_regs (gdbarch)),
 			     sigcontext_base + N64_SIGCONTEXT_REGS);
 
@@ -1383,23 +1563,9 @@ mips_linux_write_pc (struct regcache *regcache, CORE_ADDR pc)
   mips_write_pc (regcache, pc);
 
   /* Clear the syscall restart flag.  */
-  if (mips_linux_restart_reg_p (gdbarch))
-    regcache_cooked_write_unsigned (regcache, MIPS_RESTART_REGNUM, 0);
-}
-
-/* Return 1 if MIPS_RESTART_REGNUM is usable.  */
-
-int
-mips_linux_restart_reg_p (struct gdbarch *gdbarch)
-{
-  /* If we do not have a target description with registers, then
-     MIPS_RESTART_REGNUM will not be included in the register set.  */
-  if (!tdesc_has_registers (gdbarch_target_desc (gdbarch)))
-    return 0;
-
-  /* If we do, then MIPS_RESTART_REGNUM is safe to check; it will
-     either be GPR-sized or missing.  */
-  return register_size (gdbarch, MIPS_RESTART_REGNUM) > 0;
+  if (mips_regnum (gdbarch)->linux_restart >= 0)
+    regcache_cooked_write_unsigned (regcache,
+				    mips_regnum (gdbarch)->linux_restart, 0);
 }
 
 /* When FRAME is at a syscall instruction, return the PC of the next
@@ -1626,9 +1792,11 @@ mips_gdb_signal_from_target (struct gdbarch *gdbarch, int signal)
       else if (offset < 32)
 	return (enum gdb_signal) (offset - 1
 				  + (int) GDB_SIGNAL_REALTIME_33);
-      else
+      else if (offset < 128)
 	return (enum gdb_signal) (offset - 32
 				  + (int) GDB_SIGNAL_REALTIME_64);
+      else
+	return GDB_SIGNAL_REALTIME_128;
     }
 
   return linux_gdb_signal_from_target (gdbarch, signal);
@@ -1642,7 +1810,6 @@ mips_linux_init_abi (struct gdbarch_info info,
 {
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
   enum mips_abi abi = mips_abi (gdbarch);
-  struct tdesc_arch_data *tdesc_data = (void *) info.tdep_info;
 
   linux_init_abi (info, gdbarch);
 
@@ -1733,23 +1900,31 @@ mips_linux_init_abi (struct gdbarch_info info,
 
   tdep->syscall_next_pc = mips_linux_syscall_next_pc;
 
-  if (tdesc_data)
+  if (info.tdep_info->tdesc_data)
     {
       const struct tdesc_feature *feature;
 
-      /* If we have target-described registers, then we can safely
-	 reserve a number for MIPS_RESTART_REGNUM (whether it is
-	 described or not).  */
-      gdb_assert (gdbarch_num_regs (gdbarch) <= MIPS_RESTART_REGNUM);
-      set_gdbarch_num_regs (gdbarch, MIPS_RESTART_REGNUM + 1);
-      set_gdbarch_num_pseudo_regs (gdbarch, MIPS_RESTART_REGNUM + 1);
-
-      /* If it's present, then assign it to the reserved number.  */
+      /* If "restart" is present in the target register description,
+	 then assign it to a new register number.  */
       feature = tdesc_find_feature (info.target_desc,
 				    "org.gnu.gdb.mips.linux");
-      if (feature != NULL)
-	tdesc_numbered_register (feature, tdesc_data, MIPS_RESTART_REGNUM,
-				 "restart");
+      if (feature != NULL
+	  && tdesc_unnumbered_register (feature, "restart"))
+	{
+	  int restart_regnum;
+	  /* We cast away const'ness in order to set linux_restart.
+	     */
+	  struct mips_regnum *regnum =
+			(struct mips_regnum *)mips_regnum (gdbarch);
+
+	  restart_regnum = gdbarch_num_regs (gdbarch);
+	  regnum->linux_restart = restart_regnum;
+	  set_gdbarch_num_regs (gdbarch, restart_regnum + 1);
+	  set_gdbarch_num_pseudo_regs (gdbarch, restart_regnum + 1);
+
+	  tdesc_numbered_register (feature, info.tdep_info->tdesc_data,
+				   restart_regnum, "restart");
+	}
     }
 }
 

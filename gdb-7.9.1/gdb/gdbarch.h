@@ -352,6 +352,17 @@ typedef struct type * (gdbarch_register_type_ftype) (struct gdbarch *gdbarch, in
 extern struct type * gdbarch_register_type (struct gdbarch *gdbarch, int reg_nr);
 extern void set_gdbarch_register_type (struct gdbarch *gdbarch, gdbarch_register_type_ftype *register_type);
 
+/* Notify the architecture that the registers have changed and we now have
+   a new regcache to examine.  Return one if a new architecture has been
+   selected that changed the layout of the regcache and it has to be
+   discarded and a new one initialised, zero otherwise. */
+
+extern int gdbarch_regcache_changed_p (struct gdbarch *gdbarch);
+
+typedef int (gdbarch_regcache_changed_ftype) (struct gdbarch *gdbarch, struct regcache *regcache);
+extern int gdbarch_regcache_changed (struct gdbarch *gdbarch, struct regcache *regcache);
+extern void set_gdbarch_regcache_changed (struct gdbarch *gdbarch, gdbarch_regcache_changed_ftype *regcache_changed);
+
 extern int gdbarch_dummy_id_p (struct gdbarch *gdbarch);
 
 typedef struct frame_id (gdbarch_dummy_id_ftype) (struct gdbarch *gdbarch, struct frame_info *this_frame);
