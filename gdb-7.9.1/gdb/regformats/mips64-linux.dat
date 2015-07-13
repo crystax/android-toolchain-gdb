@@ -41,6 +41,7 @@ expedite:r29,pc
 64:badvaddr
 64:cause
 64:pc
+64:config5
 64:f0
 64:f1
 64:f2

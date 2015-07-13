@@ -7,12 +7,12 @@
 
 <!DOCTYPE feature SYSTEM "gdb-target.dtd">
 <feature name="org.gnu.gdb.mips.dsp">
-  <reg name="hi1" bitsize="32" regnum="72"/>
-  <reg name="lo1" bitsize="32" regnum="73"/>
-  <reg name="hi2" bitsize="32" regnum="74"/>
-  <reg name="lo2" bitsize="32" regnum="75"/>
-  <reg name="hi3" bitsize="32" regnum="76"/>
-  <reg name="lo3" bitsize="32" regnum="77"/>
+  <reg name="hi1" bitsize="32"/>
+  <reg name="lo1" bitsize="32"/>
+  <reg name="hi2" bitsize="32"/>
+  <reg name="lo2" bitsize="32"/>
+  <reg name="hi3" bitsize="32"/>
+  <reg name="lo3" bitsize="32"/>
 
-  <reg name="dspctl" bitsize="32" regnum="78"/>
+  <reg name="dspctl" bitsize="32"/>
 </feature>

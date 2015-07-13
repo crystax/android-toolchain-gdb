@@ -468,6 +468,11 @@ m:const char *:register_name:int regnr:regnr::0
 # the register cache should call this function directly; others should
 # use "register_type".
 M:struct type *:register_type:int reg_nr:reg_nr
+# Notify the architecture that the registers have changed and we now have
+# a new regcache to examine.  Return one if a new architecture has been
+# selected that changed the layout of the regcache and it has to be
+# discarded and a new one initialised, zero otherwise.
+M:int:regcache_changed:struct regcache *regcache:regcache
 
 M:struct frame_id:dummy_id:struct frame_info *this_frame:this_frame
 # Implement DUMMY_ID and PUSH_DUMMY_CALL, then delete

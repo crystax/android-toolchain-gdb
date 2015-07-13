@@ -344,8 +344,9 @@ clean:
 	rm -f reg-tilegx.c reg-tilegx32.c
 	rm -f arm-with-iwmmxt.c
 	rm -f arm-with-vfpv2.c arm-with-vfpv3.c arm-with-neon.c
-	rm -f mips-linux.c mips-dsp-linux.c
-	rm -f mips64-linux.c mips64-dsp-linux.c
+	rm -f mips-linux.c mips-dsp-linux.c mips-fpu64-linux.c
+	rm -f mips-fpu64-dsp-linux.c mips-msa-linux.c
+	rm -f mips64-linux.c mips64-dsp-linux.c mips64-msa-linux.c
 	rm -f nios2-linux.c
 	rm -f powerpc-32.c powerpc-32l.c powerpc-64l.c powerpc-e500l.c
 	rm -f powerpc-altivec32l.c powerpc-cell32l.c powerpc-vsx32l.c
@@ -632,10 +633,18 @@ mips-linux.c : $(srcdir)/../regformats/mips-linux.dat $(regdat_sh)
 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/mips-linux.dat mips-linux.c
 mips-dsp-linux.c : $(srcdir)/../regformats/mips-dsp-linux.dat $(regdat_sh)
 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/mips-dsp-linux.dat mips-dsp-linux.c
+mips-fpu64-linux.c : $(srcdir)/../regformats/mips-fpu64-linux.dat $(regdat_sh)
+	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/mips-fpu64-linux.dat mips-fpu64-linux.c
+mips-fpu64-dsp-linux.c : $(srcdir)/../regformats/mips-fpu64-dsp-linux.dat $(regdat_sh)
+	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/mips-fpu64-dsp-linux.dat mips-fpu64-dsp-linux.c
+mips-msa-linux.c : $(srcdir)/../regformats/mips-msa-linux.dat $(regdat_sh)
+	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/mips-msa-linux.dat mips-msa-linux.c
 mips64-linux.c : $(srcdir)/../regformats/mips64-linux.dat $(regdat_sh)
 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/mips64-linux.dat mips64-linux.c
 mips64-dsp-linux.c : $(srcdir)/../regformats/mips64-dsp-linux.dat $(regdat_sh)
 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/mips64-dsp-linux.dat mips64-dsp-linux.c
+mips64-msa-linux.c : $(srcdir)/../regformats/mips64-msa-linux.dat $(regdat_sh)
+	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/mips64-msa-linux.dat mips64-msa-linux.c
 nios2-linux.c :	$(srcdir)/../regformats/nios2-linux.dat $(regdat_sh)
 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/nios2-linux.dat nios2-linux.c
 powerpc-32.c : $(srcdir)/../regformats/rs6000/powerpc-32.dat $(regdat_sh)
